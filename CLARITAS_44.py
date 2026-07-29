@@ -1,0 +1,3211 @@
+#!/usr/bin/env python3
+# CLARITAS_44b_absolute_responses.py
+# Full simulation script with adaptive GPU chunk_size probing via CuPy.
+# Process-based ray tracer with a deliberately constrained pooled-mass floc PSD model, explicit mu_s step factor, fixed floc phase-regime mixture, detector-geometry diagnostics, and adaptive GPU chunking.
+#
+# Simplification note:
+#   The previous floc implementation had too many compensating fit knobs.
+#   This version keeps flocculation as a process-based effective PSD transform,
+#   but removes concentration-dependent floc size/density interpolation and
+#   disables scatter-count-dependent floc angular tuning by default.
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap, LogNorm
+import numpy.ma as ma
+import miepython
+import os
+import cupy as cp
+import time
+import h5py
+import hashlib
+
+# ============================ SEDIMENT PARTICLE DISTRIBUTION ============================
+loess_diameter = np.array([1.729e-6, 1.981e-6, 2.269e-6, 2.599e-6, 2.976e-6, 3.409e-6, 3.905e-6,
+                            4.472e-6, 5.122e-6, 5.867e-6, 6.72e-6, 7.697e-6, 8.816e-6, 10.097e-6,
+                            11.565e-6, 13.246e-6, 15.172e-6, 17.377e-6, 19.904e-6, 22.797e-6,
+                            26.111e-6, 29.907e-6, 34.255e-6, 39.234e-6, 44.938e-6, 51.471e-6,
+                            58.953e-6, 67.523e-6, 77.34e-6, 88.583e-6, 101.46e-6, 116.21e-6,
+                            133.103e-6, 152.453e-6, 174.616e-6, 200.000e-6, 229.075e-6, 262.376e-6])  # in meters
+loess_weights = np.array([157, 227, 294, 354, 414, 487, 592, 747, 975, 1291, 1704, 2197, 2736,
+                           3288, 3822, 4196, 4372, 4391, 4352, 4362, 4508, 4826, 5279, 5758,
+                           6080, 6106, 5786, 5149, 4342, 3404, 2456, 1662, 1175, 858, 631, 463, 333, 230])  # relative weights
+
+kaolin_diameter = np.array([0.172e-6, 0.197e-6, 0.226e-6, 0.259e-6, 0.296e-6, 0.339e-6, 0.389e-6,
+                            0.445e-6, 0.51e-6, 0.584e-6, 0.669e-6, 0.766e-6, 0.877e-6, 1.005e-6,
+                            1.151e-6, 1.318e-6, 1.51e-6, 1.729e-6, 1.981e-6, 2.269e-6,
+                            2.599e-6, 2.976e-6, 3.409e-6, 3.905e-6, 4.472e-6, 5.122e-6,
+                            5.867e-6, 6.72e-6, 7.697e-6, 8.816e-6, 10.097e-6, 11.565e-6,
+                            13.246e-6, 15.172e-6, 17.377e-6, 19.904e-6, 22.797e-6])  # in meters
+kaolin_weights = np.array([217, 547, 1112, 2032, 2985, 3492, 3308, 2644, 1893, 1300, 916, 700, 601,
+                           584, 637, 757, 948, 1208, 1530, 1899, 2309, 2770, 3312, 3973,
+                           4772, 5681, 6583, 7267, 7478, 7042, 6113, 5057, 3680, 2330, 1287, 631, 284])  # relative weights
+
+
+null_diameter = np.array([0.0])
+null_weights = np.array([0.0])
+
+mass_concentration_g_per_L = 4.0
+# No fixed-step scatter probability is used in CLARITAS_42.
+
+# ============================ FLOCCULATION MODEL ============================
+# CLARITAS 4.2 floc model.
+#
+# Primary particles remain individual Mie scatterers.
+#
+# Flocs are treated as porous/fractal aggregate scattering centres:
+#   - eligible primary mass pools into floc bands
+#   - floc mass is calculated by fractal scaling
+#   - floc scattering cross-section is geometric: Q_floc * pi * r^2
+#   - floc angular scattering is sampled from a synthetic fractal aggregate structure-factor CDF
+#
+# No floc Mie scattering.
+# No floc refractive-index interpolation.
+# No forward/side/back floc phase ratios.
+# No concentration-dependent floc diameter/density retuning.
+
+FLOC_ENABLED = True
+
+# Primary-particle diameter band edges eligible for pooling into floc bands.
+# Each band pools primary material above the previous edge and up to this edge.
+FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M = np.array([
+    1.5e-6,
+    2.5e-6,
+    4.0e-6,
+    6.0e-6,
+    9.0e-6,
+    13.0e-6,
+    18.0e-6,
+    25.0e-6,
+    35.0e-6,
+    50.0e-6
+], dtype=np.float64)
+
+FLOC_POOL_EFFECTIVE_DIAMETER_M = np.array([
+    8.0e-6,
+    12.0e-6,
+    18.0e-6,
+    28.0e-6,
+    40.0e-6,
+    60.0e-6,
+    120.0e-6,
+    250.0e-6,
+    500.0e-6,
+    1000.0e-6
+], dtype=np.float64)
+
+if len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M) != len(FLOC_POOL_EFFECTIVE_DIAMETER_M):
+    raise ValueError(
+        "FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M and "
+        "FLOC_POOL_EFFECTIVE_DIAMETER_M must have equal length"
+    )
+
+# Fractal aggregate compactness.
+#
+# Df = 3.0  solid-sphere-like compact aggregate
+# Df = 2.5  compact floc
+# Df = 2.0  open mineral aggregate
+# Df < 2.0  very loose/fluffy aggregate
+FLOC_FRACTAL_DIMENSION = 2.0
+
+# Aggregation opportunity length used later in:
+#   floc_mass_fraction = L_collision / (L_collision + eligible_spacing)
+FLOC_COLLISION_LENGTH_M = 20.0e-6
+
+# Geometric scattering efficiency for aggregate flocs:
+#   sigma_floc = FLOC_SCATTER_EFFICIENCY * pi * r_floc^2
+FLOC_SCATTER_EFFICIENCY = 1.0
+
+# Floc angular scattering is built from a per-bin Mie-structure-factor
+# aggregate CDF below. There is no scalar floc anisotropy parameter here.
+
+# Roughness / non-sphericity angular jitter.
+# Keep fixed across concentrations.
+PRIMARY_ROUGHNESS_STD_DEG = 0.0
+FLOC_ROUGHNESS_STD_DEG = 0.0
+PRIMARY_ROUGHNESS_STD_RAD = np.deg2rad(PRIMARY_ROUGHNESS_STD_DEG)
+FLOC_ROUGHNESS_STD_RAD = np.deg2rad(FLOC_ROUGHNESS_STD_DEG)
+
+# Backwards-compatible roughness diagnostic aliases only.
+PARTICLE_ROUGHNESS_STD_DEG = PRIMARY_ROUGHNESS_STD_DEG
+PARTICLE_ROUGHNESS_STD_RAD = PRIMARY_ROUGHNESS_STD_RAD
+# ============================ PARTICLE / FLOC ANGULAR PHYSICS ============================
+# Primary particles use Mie angular CDFs.
+# Flocs use aggregate transport physics in the CUDA kernel through a per-bin
+# synthetic fractal aggregate angular CDF, not forward/side/back fitted ratios.
+
+# Legacy primary reflection branch retained for controlled tests only.
+PRIMARY_REFLECT_PROB = 0.0
+PRIMARY_REFLECT_SIZE_THRESHOLD = 70.0e-6
+
+# Legacy names retained for backwards-compatible diagnostics only.
+# Floc angular physics is controlled by the fixed phase-regime fractions above.
+FLOC_REFLECT_PROB = 0.0
+FLOC_REFLECT_SIZE_THRESHOLD = 0.0e-6
+
+#particle_diameter_m = null_diameter
+#particle_weights = null_weights
+#particle_density_kg_per_m3 = 1.0  # loess density
+
+particle_diameter_m = loess_diameter
+particle_weights = loess_weights
+particle_density_kg_per_m3 = 2600.0  # loess density
+
+#particle_diameter_m = kaolin_diameter
+#particle_weights = kaolin_weights
+#particle_density_kg_per_m3 = 2600.0  # kaolin density
+
+# Preserve the selected primary PSD, then build the effective PSD used by
+# the transport and Mie calculations.
+primary_particle_diameter_m = np.asarray(particle_diameter_m, dtype=np.float64)
+primary_particle_weights = np.asarray(particle_weights, dtype=np.float64)
+primary_particle_weights /= np.sum(primary_particle_weights)
+
+# Original primary-bin density array, retained for diagnostics.
+primary_particle_density_by_bin_kg_per_m3 = np.full_like(
+    primary_particle_diameter_m,
+    particle_density_kg_per_m3,
+    dtype=np.float64
+)
+
+# Calculate primary number density first, using the unmodified primary PSD.
+# This is only used to estimate the spacing of floc-eligible primary particles
+# for the aggregation-state model. The final transport number density is
+# recalculated later from the effective PSD.
+primary_particle_radius_m = primary_particle_diameter_m / 2.0
+primary_particle_volumes_m3 = (4.0 / 3.0) * np.pi * primary_particle_radius_m**3
+primary_particle_masses_kg = primary_particle_volumes_m3 * particle_density_kg_per_m3
+
+mass_concentration_kg_per_m3_prefloc = mass_concentration_g_per_L
+
+# PSD weight interpretation.
+# Keep this as "mass_fraction" if the PSD weights are mass/volume fractions.
+# Use "number_fraction" if the PSD weights are particle-count/bin-number frequencies.
+# This preserves the process-based kernel model: it only changes how the physical
+# number density in each particle-size bin is inferred from the supplied PSD.
+#
+# Suggested testing:
+#   - Loess may fit best as "mass_fraction" depending on how the source PSD was exported.
+#   - Kaolin may need "number_fraction" if the listed weights are number/count frequencies.
+PSD_WEIGHT_MODE = "mass_fraction"  # options: "mass_fraction", "number_fraction"
+#PSD_WEIGHT_MODE = "number_fraction"  # options: "mass_fraction", "number_fraction"
+
+
+if PSD_WEIGHT_MODE == "mass_fraction":
+    primary_particle_number_density_by_bin = (
+        mass_concentration_kg_per_m3_prefloc *
+        primary_particle_weights /
+        primary_particle_masses_kg
+    )
+elif PSD_WEIGHT_MODE == "number_fraction":
+    primary_number_weights = primary_particle_weights / np.sum(primary_particle_weights)
+    primary_average_particle_mass = np.sum(
+        primary_number_weights * primary_particle_masses_kg
+    )
+    primary_total_number_density = (
+        mass_concentration_kg_per_m3_prefloc /
+        primary_average_particle_mass
+    )
+    primary_particle_number_density_by_bin = (
+        primary_total_number_density *
+        primary_number_weights
+    )
+else:
+    raise ValueError(
+        "PSD_WEIGHT_MODE must be either 'mass_fraction' or 'number_fraction'"
+    )
+
+if FLOC_ENABLED:
+    # Assign primary bins to floc-eligible bands.
+    primary_bin_floc_band_index = np.full(
+        primary_particle_diameter_m.shape,
+        -1,
+        dtype=np.int32
+    )
+
+    previous_edge = 0.0
+    for band_idx, band_edge in enumerate(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M):
+        band_mask = (
+            (primary_particle_diameter_m <= band_edge) &
+            (primary_particle_diameter_m > previous_edge)
+        )
+        primary_bin_floc_band_index[band_mask] = band_idx
+        previous_edge = band_edge
+
+    primary_bin_is_pooled_into_floc = primary_bin_floc_band_index >= 0
+
+    eligible_primary_number_density_per_m3 = np.sum(
+        primary_particle_number_density_by_bin[primary_bin_is_pooled_into_floc]
+    )
+
+    if eligible_primary_number_density_per_m3 > 0.0:
+        eligible_primary_spacing_m = (
+            eligible_primary_number_density_per_m3 ** (-1.0 / 3.0)
+        )
+
+        floc_encounter_probability = (
+            FLOC_COLLISION_LENGTH_M /
+            (FLOC_COLLISION_LENGTH_M + eligible_primary_spacing_m)
+        )
+
+        floc_mass_fraction = floc_encounter_probability
+    else:
+        eligible_primary_spacing_m = np.inf
+        floc_encounter_probability = 0.0
+        floc_mass_fraction = 0.0
+
+    floc_encounter_probability = np.clip(floc_encounter_probability, 0.0, 1.0)
+    floc_mass_fraction = np.clip(floc_mass_fraction, 0.0, 1.0)
+
+    # This is no longer a tunable floc-property interpolation state.
+    # Retained only as a scalar diagnostic showing that no concentration-dependent
+    # floc size/density retuning is being applied.
+    floc_property_state = 0.0
+
+    # Fractal floc mass model.
+    #
+    # For each floc band:
+    #
+    #   m_floc = m0 * (d_floc / d0)^Df
+    #
+    # where:
+    #
+    #   d0      = upper primary diameter edge for that band
+    #   m0      = mass of a compact primary particle of diameter d0
+    #   d_floc  = effective aggregate diameter
+    #   Df      = FLOC_FRACTAL_DIMENSION
+    #
+    # This means effective density naturally falls with aggregate size when Df < 3.
+    floc_reference_primary_diameter_m = FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M.copy()
+    floc_effective_diameter_by_band_m = FLOC_POOL_EFFECTIVE_DIAMETER_M.copy()
+
+    floc_reference_primary_mass_kg = (
+        particle_density_kg_per_m3 *
+        (np.pi / 6.0) *
+        floc_reference_primary_diameter_m**3
+    )
+
+    floc_mass_by_band_kg = (
+        floc_reference_primary_mass_kg *
+        (
+            floc_effective_diameter_by_band_m /
+            floc_reference_primary_diameter_m
+        ) ** FLOC_FRACTAL_DIMENSION
+    )
+
+    floc_volume_by_band_m3 = (
+        (np.pi / 6.0) *
+        floc_effective_diameter_by_band_m**3
+    )
+
+    floc_effective_density_by_band_kg_per_m3 = (
+        floc_mass_by_band_kg /
+        floc_volume_by_band_m3
+    )
+
+    # Build the effective PSD arrays.
+    effective_diameters = []
+    effective_weights = []
+    effective_particle_masses_kg = []
+    effective_densities = []
+    effective_is_floc = []
+    effective_source_primary_min = []
+    effective_source_primary_max = []
+    effective_source_primary_mass_fraction = []
+    effective_floc_band_index = []
+    effective_bin_kind = []
+
+    # For each eligible primary band:
+    #   - pool floc_mass_fraction of its mass into one fractal aggregate floc bin
+    #   - leave the remaining mass as residual primary bins
+    for band_idx in range(len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M)):
+        band_mask = primary_bin_floc_band_index == band_idx
+        band_mass_fraction = np.sum(primary_particle_weights[band_mask])
+
+        if band_mass_fraction <= 0.0:
+            continue
+
+        pooled_band_mass_fraction = band_mass_fraction * floc_mass_fraction
+        residual_band_mass_fraction = band_mass_fraction * (1.0 - floc_mass_fraction)
+
+        if pooled_band_mass_fraction > 0.0:
+            effective_diameters.append(FLOC_POOL_EFFECTIVE_DIAMETER_M[band_idx])
+            effective_weights.append(pooled_band_mass_fraction)
+            effective_particle_masses_kg.append(floc_mass_by_band_kg[band_idx])
+            effective_densities.append(floc_effective_density_by_band_kg_per_m3[band_idx])
+            effective_is_floc.append(True)
+
+            effective_source_primary_min.append(
+                np.min(primary_particle_diameter_m[band_mask])
+            )
+            effective_source_primary_max.append(
+                np.max(primary_particle_diameter_m[band_mask])
+            )
+            effective_source_primary_mass_fraction.append(
+                pooled_band_mass_fraction
+            )
+            effective_floc_band_index.append(band_idx)
+            effective_bin_kind.append("pooled_fractal_floc")
+
+        if residual_band_mass_fraction > 0.0:
+            # Retain residual primary material as the original bins, scaled so
+            # total residual mass from the band is conserved with the same
+            # within-band PSD shape.
+            band_weights = primary_particle_weights[band_mask]
+            band_weight_sum = np.sum(band_weights)
+
+            if band_weight_sum > 0.0:
+                residual_weights_by_primary_bin = (
+                    residual_band_mass_fraction *
+                    band_weights /
+                    band_weight_sum
+                )
+
+                for d_primary, w_residual in zip(
+                    primary_particle_diameter_m[band_mask],
+                    residual_weights_by_primary_bin
+                ):
+                    if w_residual <= 0.0:
+                        continue
+
+                    primary_mass_kg = (
+                        particle_density_kg_per_m3 *
+                        (np.pi / 6.0) *
+                        d_primary**3
+                    )
+
+                    effective_diameters.append(d_primary)
+                    effective_weights.append(w_residual)
+                    effective_particle_masses_kg.append(primary_mass_kg)
+                    effective_densities.append(particle_density_kg_per_m3)
+                    effective_is_floc.append(False)
+                    effective_source_primary_min.append(d_primary)
+                    effective_source_primary_max.append(d_primary)
+                    effective_source_primary_mass_fraction.append(w_residual)
+                    effective_floc_band_index.append(-1)
+                    effective_bin_kind.append("residual_primary")
+
+    # Add all non-eligible primary bins unchanged.
+    nonfloc_mask = ~primary_bin_is_pooled_into_floc
+    for d_primary, w_primary in zip(
+        primary_particle_diameter_m[nonfloc_mask],
+        primary_particle_weights[nonfloc_mask]
+    ):
+        if w_primary <= 0.0:
+            continue
+
+        primary_mass_kg = (
+            particle_density_kg_per_m3 *
+            (np.pi / 6.0) *
+            d_primary**3
+        )
+
+        effective_diameters.append(d_primary)
+        effective_weights.append(w_primary)
+        effective_particle_masses_kg.append(primary_mass_kg)
+        effective_densities.append(particle_density_kg_per_m3)
+        effective_is_floc.append(False)
+        effective_source_primary_min.append(d_primary)
+        effective_source_primary_max.append(d_primary)
+        effective_source_primary_mass_fraction.append(w_primary)
+        effective_floc_band_index.append(-1)
+        effective_bin_kind.append("unchanged_primary")
+
+    particle_diameter_m = np.asarray(effective_diameters, dtype=np.float64)
+    particle_weights = np.asarray(effective_weights, dtype=np.float64)
+    particle_weights /= np.sum(particle_weights)
+
+    # Important:
+    # This is now the authoritative per-bin particle/floc mass.
+    # Step 3 will use this directly for number-density calculation.
+    particle_mass_by_bin_kg = np.asarray(
+        effective_particle_masses_kg,
+        dtype=np.float64
+    )
+
+    # Effective density is now diagnostic only.
+    # For primaries this is the solid particle density.
+    # For flocs this is derived from the fractal mass model.
+    particle_density_by_bin_kg_per_m3 = np.asarray(
+        effective_densities,
+        dtype=np.float64
+    )
+
+    particle_is_floc = np.asarray(effective_is_floc, dtype=bool)
+
+    source_primary_min_diameter_m = np.asarray(
+        effective_source_primary_min,
+        dtype=np.float64
+    )
+    source_primary_max_diameter_m = np.asarray(
+        effective_source_primary_max,
+        dtype=np.float64
+    )
+    source_primary_mass_fraction = np.asarray(
+        effective_source_primary_mass_fraction,
+        dtype=np.float64
+    )
+    floc_band_index_by_effective_bin = np.asarray(
+        effective_floc_band_index,
+        dtype=np.int32
+    )
+    effective_bin_kind = np.asarray(effective_bin_kind, dtype=object)
+
+else:
+    primary_bin_floc_band_index = np.full(
+        primary_particle_diameter_m.shape,
+        -1,
+        dtype=np.int32
+    )
+    primary_bin_is_pooled_into_floc = np.zeros_like(
+        primary_particle_diameter_m,
+        dtype=bool
+    )
+    eligible_primary_number_density_per_m3 = 0.0
+    eligible_primary_spacing_m = np.inf
+    floc_encounter_probability = 0.0
+    floc_property_state = 0.0
+    floc_mass_fraction = 0.0
+
+    floc_reference_primary_diameter_m = np.array([], dtype=np.float64)
+    floc_reference_primary_mass_kg = np.array([], dtype=np.float64)
+    floc_mass_by_band_kg = np.array([], dtype=np.float64)
+    floc_effective_density_by_band_kg_per_m3 = np.array([], dtype=np.float64)
+
+    particle_diameter_m = primary_particle_diameter_m.copy()
+    particle_weights = primary_particle_weights.copy()
+
+    particle_mass_by_bin_kg = (
+        particle_density_kg_per_m3 *
+        (np.pi / 6.0) *
+        particle_diameter_m**3
+    )
+
+    particle_density_by_bin_kg_per_m3 = np.full_like(
+        particle_diameter_m,
+        particle_density_kg_per_m3,
+        dtype=np.float64
+    )
+
+    particle_is_floc = np.zeros_like(particle_diameter_m, dtype=bool)
+
+    source_primary_min_diameter_m = primary_particle_diameter_m.copy()
+    source_primary_max_diameter_m = primary_particle_diameter_m.copy()
+    source_primary_mass_fraction = primary_particle_weights.copy()
+    floc_band_index_by_effective_bin = np.full_like(
+        particle_diameter_m,
+        -1,
+        dtype=np.int32
+    )
+    effective_bin_kind = np.asarray(
+        ["unchanged_primary"] * len(particle_diameter_m),
+        dtype=object
+    )
+    
+particle_radius_m = particle_diameter_m / 2
+
+# Diagnostic multiplier only. For pooled flocs this is relative to the
+# mass-weighted geometric mean of the source primary band.
+source_primary_geometric_mid_diameter_m = np.sqrt(
+    source_primary_min_diameter_m * source_primary_max_diameter_m
+)
+
+floc_diameter_multiplier_by_bin = np.ones_like(
+    particle_diameter_m,
+    dtype=np.float64
+)
+
+valid_source = source_primary_geometric_mid_diameter_m > 0.0
+floc_diameter_multiplier_by_bin[valid_source] = (
+    particle_diameter_m[valid_source] /
+    source_primary_geometric_mid_diameter_m[valid_source]
+)
+
+floc_effective_density_by_bin_kg_per_m3 = particle_density_by_bin_kg_per_m3.copy()
+target_floc_density_by_bin = particle_density_by_bin_kg_per_m3.copy()
+
+# Weighted scalar diagnostic only.
+effective_particle_density_kg_per_m3 = np.sum(
+    particle_weights * particle_density_by_bin_kg_per_m3
+)
+
+# Legacy raw/effective PSD CDF retained only for diagnostics/backwards compatibility.
+cdf = np.cumsum(particle_weights)
+cdf /= np.sum(cdf)
+
+n_particle = 1.59  # real refractive index of solid primary particle material
+
+# ============================ COMPLEX INDEX / ALBEDO MODEL ============================
+# CLARITAS 4.4 optical-object model.
+#
+# Each effective bin, primary or floc, has:
+#   sigma_s        scattering cross-section
+#   sigma_a        absorption cross-section
+#   sigma_t        extinction cross-section = sigma_s + sigma_a
+#   omega          single-scattering albedo = sigma_s / sigma_t
+#   phase CDF      angular scattering law used only if the event survives absorption
+#
+# Primary particles use complex-index Mie to separate scattering and absorption.
+# Mie convention here uses m = n - i*k. Increase k to increase absorption.
+PRIMARY_REFRACTIVE_INDEX_IMAG_K = 0.001
+
+# Floc absorption/albedo is treated as a finite-optical-depth process through
+# a porous aggregate.  The absorption coefficient comes from the Maxwell-Garnett
+# effective imaginary index for each floc bin, and the interaction path is the
+# mean chord length through an equivalent spherical aggregate:
+#
+#     mean_chord = 4V/A = 2D/3
+#
+# The path factor is a physical/process sensitivity parameter allowing the
+# mean internal optical path to be lengthened or shortened without changing
+# the angular phase function.
+FLOC_ABSORPTION_K_MULTIPLIER = 1.0
+FLOC_ABSORPTION_PATH_FACTOR = 1.0
+
+n_medium = 1.33
+n_external = 1.0  # refractive index outside circular sample boundary, e.g. air
+
+
+def maxwell_garnett_effective_index(
+    matrix_index_complex,
+    inclusion_index_complex,
+    inclusion_volume_fraction
+):
+    """
+    Maxwell-Garnett effective complex refractive index.
+
+    The floc is treated as solid primary material embedded in the
+    surrounding aqueous medium. This is not used to make flocs into
+    compact Mie spheres; it provides a physically derived effective
+    complex refractive index for porous aggregate optical diagnostics
+    and absorption/albedo calculations.
+
+    Parameters
+    ----------
+    matrix_index_complex : complex
+        Complex refractive index of the host medium.
+    inclusion_index_complex : complex
+        Complex refractive index of the solid primary material.
+    inclusion_volume_fraction : float or ndarray
+        Solid volume fraction inside the aggregate.
+
+    Returns
+    -------
+    complex or ndarray
+        Effective complex refractive index using the same convention
+        as the rest of CLARITAS: n - i*k.
+    """
+    phi = np.clip(inclusion_volume_fraction, 0.0, 1.0)
+
+    eps_m = matrix_index_complex ** 2
+    eps_i = inclusion_index_complex ** 2
+
+    numerator = eps_i + 2.0 * eps_m + 2.0 * phi * (eps_i - eps_m)
+    denominator = eps_i + 2.0 * eps_m - phi * (eps_i - eps_m)
+
+    eps_eff = eps_m * numerator / denominator
+    n_eff = np.sqrt(eps_eff)
+
+    # Keep the n - i*k sign convention. Numerical branch choices can
+    # occasionally return the conjugate for very small k, so force
+    # non-positive imaginary part.
+    n_eff = np.where(
+        np.imag(n_eff) > 0.0,
+        np.conjugate(n_eff),
+        n_eff
+    )
+
+    return n_eff
+
+
+# ============================ PRIMARY / FLOC EFFECTIVE COMPLEX REFRACTIVE INDEX ============================
+# Primary particles use complex-index Mie directly.
+#
+# Flocs are not treated as compact Mie spheres for angular scattering.
+# However, each porous floc bin is assigned an effective complex refractive
+# index using Maxwell-Garnett mixing:
+#
+#     host medium = water / surrounding medium
+#     inclusion   = solid primary mineral material
+#     phi         = solid volume fraction = rho_floc / rho_primary
+#
+# This gives each floc size bin a physically derived n_eff - i*k_eff for
+# albedo/absorption diagnostics and optical-depth calculations.
+
+solid_primary_complex_index = complex(
+    n_particle,
+    -PRIMARY_REFRACTIVE_INDEX_IMAG_K
+)
+
+medium_complex_index = complex(n_medium, 0.0)
+
+solid_volume_fraction_by_bin = np.clip(
+    particle_density_by_bin_kg_per_m3 / particle_density_kg_per_m3,
+    0.0,
+    1.0
+)
+
+particle_complex_refractive_index_by_bin = np.full(
+    particle_diameter_m.shape,
+    solid_primary_complex_index,
+    dtype=np.complex128
+)
+
+if np.any(particle_is_floc):
+    particle_complex_refractive_index_by_bin[particle_is_floc] = (
+        maxwell_garnett_effective_index(
+            medium_complex_index,
+            solid_primary_complex_index,
+            solid_volume_fraction_by_bin[particle_is_floc]
+        )
+    )
+
+particle_refractive_index_by_bin = np.real(
+    particle_complex_refractive_index_by_bin
+).astype(np.float64)
+
+particle_refractive_index_imag_k_by_bin = np.maximum(
+    -np.imag(particle_complex_refractive_index_by_bin),
+    0.0
+).astype(np.float64)
+
+        
+detector_angles = np.arange(0, 180, 10)   # centres in degrees 0 to 170 - matches TARDIIS & CLARITAS outputs
+#detector_angles = np.arange(0, 190, 10)   # centres in degrees 0 to 180
+detector_acceptance_deg = 6.5  # degrees
+#detector_acceptance_deg = 10.0  # degrees
+#theta_deg = np.arange(0.0, 191.0, 0.001)
+theta_deg = np.arange(0.0, 181.0, 0.001)
+
+
+#### LED Beam parameters ####
+alpha1 = 1.0
+alpha2 = 100.0
+
+#wavelengths = [200e-9, 622e-9, 850e-9]  # in meters
+#wavelengths = [200e-9, 622e-9, 950e-9]  # in meters
+wavelengths = [622e-9]  # in meters
+
+
+#### Kernel parameters for TARDIIS####
+#R_REAL = 0.049    # Sample radius (m) TARDIIS
+R_REAL = 0.049    # Sample radius (m)
+#reflection_path_length = R_REAL
+#reflection_path_length = 1.0e4  ## steps
+#reflection_path_length = 0.0
+#RAY_OFFSET = 0.05  # Ray initial y-offset (m) TARDIIS
+RAY_OFFSET = 0.005  # Ray initial y-offset (m)
+#STEP_SIZE = 1.0e-6  # integration step size (m)
+#STEP_SIZE = 1.0e-7  # integration step size (m)
+#VISUAL_SCALE = 100.0 TARDIIS
+#VIS_SIZE = 2048      # Heatmap resolution TARDIIS
+VISUAL_SCALE = 1.0
+VIS_SIZE = 4096      # Heatmap resolution
+N_RAYS = 1_000_00  # number of rays to simulate
+MAX_EXTINCTIONS = 10000
+
+###### OUTPUT DIRECTORY #######
+OUTDIR = "."
+os.makedirs(OUTDIR, exist_ok=True)
+
+# ============================ PHYSICAL PSD / SCATTERING SETUP ============================
+# Unit conversion:
+#   1 g/L == 1 kg/m^3
+mass_concentration_kg_per_m3 = mass_concentration_g_per_L
+
+# Convert the effective PSD into physical number density per bin.
+#
+# CLARITAS 4.4 important point:
+#
+#   particle_mass_by_bin_kg is authoritative.
+#
+# For primaries:
+#   particle_mass_by_bin_kg = rho_solid * pi/6 * d^3
+#
+# For flocs:
+#   particle_mass_by_bin_kg = m0 * (d_floc/d0)^Df
+#
+# This preserves the fractal aggregate model and avoids accidentally treating
+# flocs as compact spheres during number-density calculation.
+if PSD_WEIGHT_MODE == "mass_fraction":
+    particle_number_density_by_bin = (
+        mass_concentration_kg_per_m3 *
+        particle_weights /
+        particle_mass_by_bin_kg
+    )
+
+elif PSD_WEIGHT_MODE == "number_fraction":
+    number_weights = particle_weights / np.sum(particle_weights)
+
+    average_particle_mass_from_number_distribution = np.sum(
+        number_weights * particle_mass_by_bin_kg
+    )
+
+    total_number_density = (
+        mass_concentration_kg_per_m3 /
+        average_particle_mass_from_number_distribution
+    )
+
+    particle_number_density_by_bin = total_number_density * number_weights
+
+else:
+    raise ValueError(
+        "PSD_WEIGHT_MODE must be either 'mass_fraction' or 'number_fraction'"
+    )
+
+n_particles_per_m3 = np.sum(particle_number_density_by_bin)
+average_particle_separation_m = n_particles_per_m3 ** (-1.0 / 3.0)
+average_particle_mass = (
+    mass_concentration_kg_per_m3 / n_particles_per_m3
+    if n_particles_per_m3 > 0.0
+    else 0.0
+)
+
+# Diagnostic quantities retained for compatibility with previous printed outputs.
+pm = particle_mass_by_bin_kg
+particle_mass = average_particle_mass
+
+# Use the first configured wavelength for the scalar transport setup.
+scatter_probability_wavelength = wavelengths[0]
+
+# Optical cross-sections and anisotropy per effective bin.
+#
+# Primary particles:
+#   sigma_t = Qext * pi*r^2 from complex-index Mie
+#   sigma_s = Qsca * pi*r^2 from complex-index Mie
+#   sigma_a = max(sigma_t - sigma_s, 0)
+#   omega   = sigma_s / sigma_t
+#   g       = Mie asymmetry parameter
+#
+# Flocs:
+#   n_eff - i*k_eff = Maxwell-Garnett(medium, solid primary, solid volume fraction)
+#   sigma_s = FLOC_SCATTER_EFFICIENCY * pi*r_floc^2
+#   sigma_a = pi*r_floc^2 * (1 - exp(-tau_abs_floc))
+#   tau_abs_floc = 4*pi*k_eff*path/lambda
+#   phase CDF = synthetic fractal aggregate structure-factor CDF built below
+#
+# The GPU transport kernel is generic: it selects an extinction event from
+# sigma_t, then uses omega to decide whether the event scatters or absorbs.
+sigma_s = []
+sigma_a = []
+sigma_t = []
+single_scattering_albedo_by_bin = []
+g_by_bin = []
+floc_absorption_tau_by_bin = np.zeros_like(particle_diameter_m, dtype=np.float64)
+floc_absorption_coefficient_by_bin_per_m = np.zeros_like(particle_diameter_m, dtype=np.float64)
+floc_mean_chord_length_by_bin_m = np.zeros_like(particle_diameter_m, dtype=np.float64)
+
+for idx, (r, refr_index, is_floc) in enumerate(zip(
+    particle_radius_m,
+    particle_refractive_index_by_bin,
+    particle_is_floc
+)):
+    area = np.pi * r**2
+
+    if is_floc:
+        sigma_s_this = FLOC_SCATTER_EFFICIENCY * area
+
+        solid_volume_fraction = solid_volume_fraction_by_bin[idx]
+
+        # Maxwell-Garnett effective imaginary component for this porous floc.
+        # The multiplier acts on the physically derived k_eff, not directly on
+        # detector response or on a material-specific scatter multiplier.
+        k_eff = (
+            particle_refractive_index_imag_k_by_bin[idx] *
+            FLOC_ABSORPTION_K_MULTIPLIER
+        )
+
+        # Absorption coefficient for intensity in a medium with complex index
+        # n - i*k:
+        #
+        #     alpha_abs = 4*pi*k / lambda
+        #
+        # The finite-floc optical depth is then alpha_abs times the mean chord
+        # length through an equivalent spherical aggregate.
+        alpha_abs_per_m = (
+            4.0 * np.pi * k_eff / scatter_probability_wavelength
+            if scatter_probability_wavelength > 0.0 else 0.0
+        )
+        alpha_abs_per_m = max(float(alpha_abs_per_m), 0.0)
+
+        mean_chord_m = (2.0 / 3.0) * particle_diameter_m[idx]
+        internal_path_m = FLOC_ABSORPTION_PATH_FACTOR * mean_chord_m
+
+        tau_abs = alpha_abs_per_m * internal_path_m
+        tau_abs = max(float(tau_abs), 0.0)
+
+        floc_absorption_coefficient_by_bin_per_m[idx] = alpha_abs_per_m
+        floc_mean_chord_length_by_bin_m[idx] = internal_path_m
+        floc_absorption_tau_by_bin[idx] = tau_abs
+
+        absorption_probability_this = 1.0 - np.exp(-tau_abs)
+
+        # Effective absorption cross-section for the finite porous aggregate.
+        # The geometric area gives the encounter cross-section; the optical depth
+        # gives the absorption probability conditional on such an encounter.
+        sigma_a_this = area * absorption_probability_this
+        sigma_t_this = sigma_s_this + sigma_a_this
+
+        sigma_s.append(sigma_s_this)
+        sigma_a.append(sigma_a_this)
+        sigma_t.append(sigma_t_this)
+        single_scattering_albedo_by_bin.append(
+            sigma_s_this / sigma_t_this if sigma_t_this > 0.0 else 1.0
+        )
+
+        # Diagnostic placeholder; floc angular behaviour comes from the
+        # synthetic fractal aggregate CDF built below.
+        g_by_bin.append(0.0)
+
+    else:
+        # Complex refractive index for primary particles.
+        # Absorption is represented by the imaginary component k.
+        m_rel = particle_complex_refractive_index_by_bin[idx] / n_medium
+        x_mie = 2.0 * np.pi * n_medium * r / scatter_probability_wavelength
+
+        qext, qsca, qback, g = miepython.efficiencies_mx(
+            m_rel,
+            x_mie
+        )
+
+        sigma_t_this = max(float(np.real(qext)) * area, 0.0)
+        sigma_s_this = max(float(np.real(qsca)) * area, 0.0)
+        sigma_a_this = max(sigma_t_this - sigma_s_this, 0.0)
+
+        # Numerical guard: for very small roundoff errors, preserve extinction.
+        if sigma_s_this > sigma_t_this and sigma_t_this > 0.0:
+            sigma_s_this = sigma_t_this
+            sigma_a_this = 0.0
+
+        sigma_s.append(sigma_s_this)
+        sigma_a.append(sigma_a_this)
+        sigma_t.append(sigma_t_this)
+        single_scattering_albedo_by_bin.append(
+            sigma_s_this / sigma_t_this if sigma_t_this > 0.0 else 1.0
+        )
+        g_by_bin.append(float(np.real(g)))
+
+sigma_s = np.asarray(sigma_s, dtype=np.float64)
+sigma_a = np.asarray(sigma_a, dtype=np.float64)
+sigma_t = np.asarray(sigma_t, dtype=np.float64)
+single_scattering_albedo_by_bin = np.asarray(
+    single_scattering_albedo_by_bin,
+    dtype=np.float64
+)
+g_by_bin = np.asarray(g_by_bin, dtype=np.float64)
+
+# Macroscopic scattering, absorption and extinction coefficients.
+# Units: 1/m
+mu_s_by_bin = particle_number_density_by_bin * sigma_s
+mu_a_by_bin = particle_number_density_by_bin * sigma_a
+mu_t_by_bin = particle_number_density_by_bin * sigma_t
+
+mu_s = np.sum(mu_s_by_bin)
+mu_a = np.sum(mu_a_by_bin)
+mu_t = np.sum(mu_t_by_bin)
+
+# Reduced scattering coefficient:
+#   mu_s_prime = sum_i(mu_s_i * (1 - g_i))
+#
+# Primary g values come from Mie.
+# Floc g values are diagnostic placeholders; floc angular behaviour is in the CDF.
+mu_s_prime_by_bin = mu_s_by_bin * (1.0 - g_by_bin)
+mu_s_prime = np.sum(mu_s_prime_by_bin)
+
+if mu_s > 0.0:
+    g_eff = np.sum(mu_s_by_bin * g_by_bin) / mu_s
+else:
+    g_eff = 0.0
+
+medium_single_scattering_albedo = mu_s / mu_t if mu_t > 0.0 else 1.0
+
+# Event-driven transport diagnostics.
+# CLARITAS_42 does not use a fixed numerical STEP_SIZE or a per-step
+# scatter probability. The CUDA transport kernel samples physical free paths
+# directly from the macroscopic extinction coefficient:
+#
+#     s = -ln(U) / mu_t
+#
+# These values are printed only as physical references.
+MEAN_FREE_PATH_M = 1.0 / mu_t if mu_t > 0.0 else np.inf
+MEAN_SCATTERING_PATH_M = 1.0 / mu_s if mu_s > 0.0 else np.inf
+MEAN_ABSORPTION_PATH_M = 1.0 / mu_a if mu_a > 0.0 else np.inf
+TRANSPORT_MEAN_FREE_PATH_M = (
+    1.0 / mu_s_prime if mu_s_prime > 0.0 else np.inf
+)
+
+# Particle/floc choice during an extinction event is weighted by the
+# macroscopic extinction contribution of each effective optical object:
+#
+#     P_i = N_i * sigma_t_i / sum_j(N_j * sigma_t_j)
+#
+# where:
+#     N_i       = number density of bin i [1/m^3]
+#     sigma_t_i = extinction cross-section of bin i [m^2]
+#     mu_t_i    = N_i * sigma_t_i [1/m]
+#
+# This is deliberately NOT PSD-mass weighting and NOT scattering-only
+# weighting.  It is the physically correct event-selection distribution for
+# event-driven Monte Carlo transport, because a photon reaches an extinction
+# event before deciding whether that event scatters or absorbs.
+extinction_event_strength_by_bin = particle_number_density_by_bin * sigma_t
+
+# This should be numerically identical to mu_t_by_bin.  Keep both names:
+#   - mu_t_by_bin is used in optical diagnostics
+#   - extinction_event_strength_by_bin documents the transport meaning
+if not np.allclose(
+    extinction_event_strength_by_bin,
+    mu_t_by_bin,
+    rtol=1.0e-12,
+    atol=0.0
+):
+    raise RuntimeError(
+        "Extinction event strengths and mu_t_by_bin disagree. "
+        "Check sigma_t / number-density construction."
+    )
+
+particle_event_weights = np.zeros_like(mu_t_by_bin, dtype=np.float64)
+
+if mu_t > 0.0:
+    particle_event_weights = extinction_event_strength_by_bin / mu_t
+
+particle_event_cdf = np.cumsum(particle_event_weights)
+
+if particle_event_cdf[-1] > 0.0:
+    particle_event_cdf /= particle_event_cdf[-1]
+
+floc_event_probability = (
+    np.sum(particle_event_weights[particle_is_floc])
+    if np.any(particle_is_floc)
+    else 0.0
+)
+
+primary_event_probability = (
+    np.sum(particle_event_weights[~particle_is_floc])
+    if np.any(~particle_is_floc)
+    else 0.0
+)
+
+print(f"floc_event_probability: {floc_event_probability:.6f}")
+print(f"primary_event_probability: {primary_event_probability:.6f}")
+
+print(f"FLOC_ENABLED: {FLOC_ENABLED}")
+print(
+    "FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_um:",
+    np.round(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M * 1e6, 3).tolist()
+)
+print(
+    "FLOC_POOL_EFFECTIVE_DIAMETER_um:",
+    np.round(FLOC_POOL_EFFECTIVE_DIAMETER_M * 1e6, 3).tolist()
+)
+print(f"FLOC_FRACTAL_DIMENSION: {FLOC_FRACTAL_DIMENSION:.3f}")
+print(f"FLOC_SCATTER_EFFICIENCY: {FLOC_SCATTER_EFFICIENCY:.3f}")
+print(f"FLOC_COLLISION_LENGTH_um: {FLOC_COLLISION_LENGTH_M*1e6:.3f}")
+print(f"eligible_primary_number_density_per_m3: {eligible_primary_number_density_per_m3:.3e}")
+print(f"eligible_primary_spacing_m: {eligible_primary_spacing_m:.3e}")
+print(f"floc_encounter_probability: {floc_encounter_probability:.6f}")
+print(f"floc_property_state: {floc_property_state:.6f}")
+print(f"floc_mass_fraction: {floc_mass_fraction:.6f}")
+
+if np.any(particle_is_floc):
+    print(
+        "fractal_floc_mass_by_band_kg:",
+        np.round(floc_mass_by_band_kg, 18).tolist()
+    )
+    print(
+        "fractal_floc_effective_density_by_band_kg_per_m3:",
+        np.round(floc_effective_density_by_band_kg_per_m3, 3).tolist()
+    )
+
+print(f"effective_floc_bins: {np.sum(particle_is_floc)}")
+print(
+    f"primary_bins_eligible_for_flocs: "
+    f"{np.sum(primary_bin_is_pooled_into_floc)} / {len(primary_bin_is_pooled_into_floc)}"
+)
+print(f"effective_total_bins: {len(particle_diameter_m)}")
+print(
+    f"pooled_floc_mass_fraction_effective_psd: "
+    f"{np.sum(particle_weights[particle_is_floc]) if np.any(particle_is_floc) else 0.0:.6f}"
+)
+print(
+    f"residual_or_unchanged_primary_mass_fraction_effective_psd: "
+    f"{np.sum(particle_weights[~particle_is_floc]) if np.any(~particle_is_floc) else 0.0:.6f}"
+)
+print(
+    f"effective_floc_multiplier_range: "
+    f"{np.min(floc_diameter_multiplier_by_bin[particle_is_floc]) if np.any(particle_is_floc) else 1.0:.3f} - "
+    f"{np.max(floc_diameter_multiplier_by_bin[particle_is_floc]) if np.any(particle_is_floc) else 1.0:.3f}"
+)
+print(
+    f"effective_floc_density_range_kg_per_m3: "
+    f"{np.min(particle_density_by_bin_kg_per_m3[particle_is_floc]) if np.any(particle_is_floc) else 0.0:.3e} - "
+    f"{np.max(particle_density_by_bin_kg_per_m3[particle_is_floc]) if np.any(particle_is_floc) else 0.0:.3e}"
+)
+print(
+    f"primary_diameter_range_um: "
+    f"{np.min(primary_particle_diameter_m)*1e6:.3f} - "
+    f"{np.max(primary_particle_diameter_m)*1e6:.3f}"
+)
+print(
+    f"effective_diameter_range_um: "
+    f"{np.min(particle_diameter_m)*1e6:.3f} - "
+    f"{np.max(particle_diameter_m)*1e6:.3f}"
+)
+print(
+    f"effective_floc_diameter_range_um: "
+    f"{np.min(particle_diameter_m[particle_is_floc])*1e6 if np.any(particle_is_floc) else 0.0:.3f} - "
+    f"{np.max(particle_diameter_m[particle_is_floc])*1e6 if np.any(particle_is_floc) else 0.0:.3f}"
+)
+print(f"nonfloc_density_kg_per_m3: {particle_density_kg_per_m3:.3e}")
+print(f"weighted_effective_density_kg_per_m3: {effective_particle_density_kg_per_m3:.3e}")
+print(
+    f"primary_refractive_index: {n_particle:.4f}; "
+    f"floc_refractive_index: not used"
+)
+print("Primary reflection fudge: disabled/removed from CLARITAS_43 transport")
+print(f"n_particles_per_m3: {n_particles_per_m3:.3e}")
+print(f"particle_mass: {particle_mass:.3e}")
+print(f"average_particle_mass: {average_particle_mass:.3e}")
+print(f"average_particle_separation_m: {average_particle_separation_m:.3e}")
+print(f"mu_s: {mu_s:.3e}")
+print(f"mu_a: {mu_a:.3e}")
+print(f"mu_t: {mu_t:.3e}")
+print(f"medium_single_scattering_albedo: {medium_single_scattering_albedo:.6f}")
+print(f"g_eff: {g_eff:.6f}")
+print(f"mu_s_prime: {mu_s_prime:.3e}")
+print(f"MEAN_FREE_PATH_M: {MEAN_FREE_PATH_M:.3e}")
+print(f"PSD_WEIGHT_MODE: {PSD_WEIGHT_MODE}")
+print(f"particle_event_weights_sum: {np.sum(particle_event_weights):.6f}")
+print(
+    "extinction_event_weighting: "
+    "P_i = number_density_i * sigma_t_i / sum(number_density * sigma_t)"
+)
+print(
+    f"extinction_weight_check_sum_mu_t_by_bin: "
+    f"{np.sum(extinction_event_strength_by_bin):.6e}"
+)
+print(f"dominant_event_diameter_um: {particle_diameter_m[np.argmax(particle_event_weights)]*1e6:.3f}")
+print(f"MEAN_SCATTERING_PATH_M: {MEAN_SCATTERING_PATH_M:.3e}")
+print(f"MEAN_ABSORPTION_PATH_M: {MEAN_ABSORPTION_PATH_M:.3e}")
+print(f"TRANSPORT_MEAN_FREE_PATH_M: {TRANSPORT_MEAN_FREE_PATH_M:.3e}")
+print("Transport mode: event-driven free-path sampling from mu_t")
+print(f"Primary roughness std: {PRIMARY_ROUGHNESS_STD_DEG:.3f} deg")
+print(f"Floc roughness std: {FLOC_ROUGHNESS_STD_DEG:.3f} deg")
+print(f"PRIMARY_REFRACTIVE_INDEX_IMAG_K: {PRIMARY_REFRACTIVE_INDEX_IMAG_K:.6g}")
+print(f"FLOC_ABSORPTION_K_MULTIPLIER: {FLOC_ABSORPTION_K_MULTIPLIER:.6g}")
+print(f"FLOC_ABSORPTION_PATH_FACTOR: {FLOC_ABSORPTION_PATH_FACTOR:.6g}")
+print(f"single_scattering_albedo_range: {np.min(single_scattering_albedo_by_bin):.6f} - {np.max(single_scattering_albedo_by_bin):.6f}")
+if np.any(particle_is_floc):
+    print(
+        f"floc_mean_chord_length_range_um: "
+        f"{np.min(floc_mean_chord_length_by_bin_m[particle_is_floc]) * 1.0e6:.3f} - "
+        f"{np.max(floc_mean_chord_length_by_bin_m[particle_is_floc]) * 1.0e6:.3f}"
+    )
+    print(
+        f"floc_absorption_tau_range: "
+        f"{np.min(floc_absorption_tau_by_bin[particle_is_floc]):.6e} - "
+        f"{np.max(floc_absorption_tau_by_bin[particle_is_floc]):.6e}"
+    )
+print(f"Boundary refractive indices: n_medium={n_medium:.3f}, n_external={n_external:.3f}")
+
+# Reflection path length disabled unless you deliberately re-enable the old empirical model.
+reflection_path_length = 0.0
+
+#reflection_path_length = 0.0
+#scatter_prob_per_step = (1.0 / average_particle_separation_m) ** SCAT_PROB_EXPONENT
+#scatter_prob_per_step = STEP_SIZE / average_particle_separation_m 
+#scatter_prob_per_step = mu_s * STEP_SIZE / average_particle_separation_m
+
+##############################################
+
+
+def closest_index(arr, value):
+    i = np.searchsorted(arr, value)
+    if i == 0:
+        return 0
+    if i == len(arr):
+        return len(arr) - 1
+    left = i - 1
+    right = i
+    return left if abs(arr[left] - value) <= abs(arr[right] - value) else right
+
+# ================= ANGULAR PROFILES (host side - primary Mie + floc Mie-structure aggregate CDF, cached) =================
+theta_rad = np.deg2rad(theta_deg)
+
+# CLARITAS 4.2 angular-profile cache.
+#
+# Primary bins:
+#   - Mie angular intensity
+#   - Mie CDF sampled by CUDA kernel
+#
+# Floc bins:
+#   - synthetic fractal aggregate angular profile
+#   - representative source-primary Mie form factor
+#   - fractal structure factor from effective floc size and Df
+#   - optical-depth blend toward structure-dominated scattering
+#
+# The CUDA kernel samples angle_cdf_table for both primary and floc bins.
+
+#mie_cache_version = "claritas_3p0_primary_mie_floc_fractal_hg_v1"
+mie_cache_version = "claritas_4p4_mg_effective_complex_index_v1"
+
+mie_cache_key = (
+    mie_cache_version +
+    str(wavelengths) +
+    str(n_particle) +
+    str(n_medium) +
+    str(float(theta_deg[1] - theta_deg[0])) +
+    str(primary_particle_diameter_m.tolist()) +
+    str(primary_particle_weights.tolist()) +
+    str(particle_diameter_m.tolist()) +
+    str(particle_weights.tolist()) +
+    str(particle_is_floc.astype(int).tolist()) +
+    str(FLOC_ENABLED) +
+    str(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M.tolist()) +
+    str(FLOC_POOL_EFFECTIVE_DIAMETER_M.tolist()) +
+    str(FLOC_FRACTAL_DIMENSION) +
+    str(FLOC_COLLISION_LENGTH_M) +
+    str(FLOC_SCATTER_EFFICIENCY) +
+    str(PRIMARY_REFRACTIVE_INDEX_IMAG_K) +
+    str(particle_complex_refractive_index_by_bin.real.tolist()) +
+    str(particle_refractive_index_imag_k_by_bin.tolist()) +
+    str(FLOC_ABSORPTION_K_MULTIPLIER) +
+    str(FLOC_ABSORPTION_PATH_FACTOR) +
+    str(floc_mass_fraction) +
+    str(eligible_primary_spacing_m) +
+    str(floc_mass_by_band_kg.tolist() if len(floc_mass_by_band_kg) else []) +
+    str(floc_effective_density_by_band_kg_per_m3.tolist() if len(floc_effective_density_by_band_kg_per_m3) else []) +
+    str(floc_band_index_by_effective_bin.tolist()) +
+    str(effective_bin_kind.tolist())
+)
+
+mie_cache_hash = hashlib.md5(mie_cache_key.encode()).hexdigest()
+mie_cache_file = os.path.join(OUTDIR, f"angular_cache_{mie_cache_hash}.npz")
+
+
+
+def _normalise_profile_for_cdf(I):
+    """Return a positive finite angular profile suitable for CDF building."""
+    I = np.asarray(I, dtype=np.float64)
+    I = np.real(I)
+    I[~np.isfinite(I)] = 0.0
+    I = np.maximum(I, 0.0)
+    if np.sum(I) <= 0.0:
+        I = np.ones_like(theta_rad, dtype=np.float64)
+    return I
+
+
+def _representative_primary_index_for_effective_bin(bin_idx):
+    """Pick the nearest primary PSD bin to the source band geometric midpoint."""
+    source_min = source_primary_min_diameter_m[bin_idx]
+    source_max = source_primary_max_diameter_m[bin_idx]
+
+    if source_min > 0.0 and source_max > 0.0:
+        source_mid = np.sqrt(source_min * source_max)
+    else:
+        source_mid = np.nan
+
+    if not np.isfinite(source_mid) or source_mid <= 0.0:
+        source_mid = np.nanmedian(primary_particle_diameter_m)
+
+    return int(np.argmin(np.abs(primary_particle_diameter_m - source_mid)))
+
+
+def _deterministic_seed_from_bin(bin_idx, wavelength_m):
+    """Stable integer seed for synthetic aggregate generation."""
+    key = (
+        "synthetic_floc_structure_" +
+        str(int(bin_idx)) + "_" +
+        str(float(wavelength_m)) + "_" +
+        str(float(particle_diameter_m[bin_idx])) + "_" +
+        str(float(source_primary_min_diameter_m[bin_idx])) + "_" +
+        str(float(source_primary_max_diameter_m[bin_idx])) + "_" +
+        str(float(FLOC_FRACTAL_DIMENSION))
+    )
+    return int(hashlib.md5(key.encode("ascii")).hexdigest()[:8], 16)
+
+
+def _representative_monomer_count_for_floc_bin(bin_idx):
+    """
+    Estimate the number of representative source-primary monomers in a floc.
+
+    This uses existing fractal mass and source-primary quantities only. The
+    returned count is used for the aggregate structure factor. It is capped for
+    CPU cost, while the physical count is retained for diagnostics.
+    """
+    rep_idx = _representative_primary_index_for_effective_bin(bin_idx)
+    d_rep = primary_particle_diameter_m[rep_idx]
+    m_rep = particle_density_kg_per_m3 * (np.pi / 6.0) * d_rep**3
+
+    physical_count = (
+        particle_mass_by_bin_kg[bin_idx] / m_rep
+        if m_rep > 0.0 else 1.0
+    )
+    physical_count = max(float(physical_count), 1.0)
+
+    # Pair summation cost is O(N^2). This cap is computational, not a fit knob.
+    # It preserves the aggregate length scales while keeping angular-table
+    # generation practical.
+    synthetic_count = int(np.clip(round(physical_count), 8, 384))
+
+    return synthetic_count, physical_count, rep_idx
+
+
+def _generate_synthetic_fractal_points(bin_idx, n_points, wavelength_m):
+    """
+    Generate a deterministic synthetic fractal-like 3D aggregate.
+
+    The radial number scaling follows N(r) proportional to r^Df inside the
+    aggregate envelope. This does not try to build a mechanically exact DLCA/RLCA
+    cluster; it generates a pair-distance distribution with the requested Df,
+    floc size, and source-primary scale for structure-factor evaluation.
+    """
+    rng = np.random.default_rng(_deterministic_seed_from_bin(bin_idx, wavelength_m))
+
+    df = float(np.clip(FLOC_FRACTAL_DIMENSION, 1.1, 3.0))
+    r_outer = max(float(particle_diameter_m[bin_idx]) / 2.0, 1.0e-12)
+
+    u = rng.random(n_points)
+    radii = r_outer * np.power(u, 1.0 / df)
+
+    cos_t = 2.0 * rng.random(n_points) - 1.0
+    sin_t = np.sqrt(np.maximum(0.0, 1.0 - cos_t*cos_t))
+    phi = 2.0 * np.pi * rng.random(n_points)
+
+    points = np.column_stack((
+        radii * sin_t * np.cos(phi),
+        radii * sin_t * np.sin(phi),
+        radii * cos_t
+    ))
+
+    # Recentre so the aggregate centre of mass is at the scattering event.
+    points -= np.mean(points, axis=0)
+
+    return points
+
+
+def _pair_distance_structure_factor(theta_rad_values, wavelength_m, points):
+    """
+    Structure factor from the Debye pair-distance expression:
+
+        S(q) = 1 + (2/N) sum_{i<j} sin(q r_ij)/(q r_ij)
+
+    Memory-safe version:
+      - computes pair distances once
+      - deterministically subsamples pair distances if needed
+      - evaluates q in chunks so no huge [n_theta x n_pairs] array is formed
+
+    This is a computational approximation only. It does not add a fit parameter.
+    """
+    points = np.asarray(points, dtype=np.float64)
+    n = int(points.shape[0])
+
+    if n < 2:
+        return np.ones_like(theta_rad_values, dtype=np.float64), 1.0e-12
+
+    diff = points[:, None, :] - points[None, :, :]
+    dist = np.sqrt(np.sum(diff * diff, axis=2))
+    iu = np.triu_indices(n, k=1)
+    rij = dist[iu]
+    rij = rij[rij > 0.0].astype(np.float64)
+
+    if rij.size == 0:
+        return np.ones_like(theta_rad_values, dtype=np.float64), 1.0e-12
+
+    # Computational cap for pair-distance summation. For large synthetic
+    # aggregates, a deterministic subsample preserves the pair-distance
+    # distribution without allocating tens of GB.
+    max_pair_samples = 8192
+    pair_weight_scale = 1.0
+
+    if rij.size > max_pair_samples:
+        rng = np.random.default_rng(
+            int(hashlib.md5(rij[:min(64, rij.size)].tobytes()).hexdigest()[:8], 16)
+        )
+        sample_idx = rng.choice(rij.size, size=max_pair_samples, replace=False)
+        pair_weight_scale = float(rij.size) / float(max_pair_samples)
+        rij = rij[sample_idx]
+
+    q = (
+        (4.0 * np.pi * n_medium / wavelength_m) *
+        np.sin(theta_rad_values / 2.0)
+    ).astype(np.float64)
+
+    S = np.empty_like(q, dtype=np.float64)
+
+    # Chunk q so qr never becomes enormous.
+    q_chunk = 1024
+    for start in range(0, len(q), q_chunk):
+        end = min(len(q), start + q_chunk)
+        qr = q[start:end, None] * rij[None, :]
+
+        sinc = np.ones_like(qr, dtype=np.float64)
+        nz = np.abs(qr) > 1.0e-12
+        sinc[nz] = np.sin(qr[nz]) / qr[nz]
+
+        pair_sum = np.sum(sinc, axis=1) * pair_weight_scale
+        S[start:end] = 1.0 + (2.0 / float(n)) * pair_sum
+
+    S = np.maximum(S, 0.0)
+
+    # Radius of gyration controls the width of the coherent forward lobe.
+    centred = points - np.mean(points, axis=0)
+    rg = np.sqrt(np.mean(np.sum(centred * centred, axis=1)))
+    rg = max(float(rg), 1.0e-12)
+
+    # Delta-Eddington-like removal of unresolved near-forward coherent lobe.
+    theta_forward = wavelength_m / (2.0 * np.pi * n_medium * rg)
+    theta_forward = max(float(theta_forward), np.deg2rad(0.02))
+    transport_filter = 1.0 - np.exp(-((theta_rad_values / theta_forward) ** 2))
+
+    # Retain incoherent self term while suppressing only the coherent spike.
+    I_transport = 1.0 + np.maximum(S - 1.0, 0.0) * transport_filter
+
+    I_transport = _normalise_profile_for_cdf(I_transport)
+    return I_transport, rg
+
+
+def floc_synthetic_structure_profile(bin_idx, wavelength_m, mu_values, theta_rad_values):
+    """
+    Synthetic finite-fractal-aggregate transport phase function.
+
+    Primary bins still use Mie. Floc bins use a structure-factor CDF generated
+    from a deterministic synthetic aggregate and the Debye pair-distance formula.
+    The unresolved forward coherent lobe is excluded from the transport phase,
+    so the CDF represents direction-changing aggregate scattering rather than
+    near-forward diffraction.
+    """
+    n_synth, n_physical, rep_idx = _representative_monomer_count_for_floc_bin(bin_idx)
+    points = _generate_synthetic_fractal_points(bin_idx, n_synth, wavelength_m)
+    I, rg = _pair_distance_structure_factor(theta_rad_values, wavelength_m, points)
+
+    return I
+
+
+if os.path.exists(mie_cache_file):
+    print(f"Loading cached angular tables: {mie_cache_file}")
+
+    cache = np.load(mie_cache_file, allow_pickle=True)
+
+    all_profiles = [
+        np.asarray(profile, dtype=np.float64)
+        for profile in cache["all_profiles"]
+    ]
+
+    cdf_profiles = [
+        np.asarray(profile, dtype=np.float64)
+        for profile in cache["cdf_profiles"]
+    ]
+
+else:
+    print("Building angular tables: primary Mie + synthetic fractal floc structure + complex-index albedo diagnostics...")
+
+    all_profiles = []
+    cdf_profiles = []
+
+    for wl in wavelengths:
+        mu = np.cos(theta_rad)
+
+        psd_weighted_profile = np.zeros_like(theta_rad, dtype=np.float64)
+        per_particle_cdfs = []
+
+        for bin_idx, (radius, weight, refr_index, is_floc) in enumerate(zip(
+            particle_radius_m,
+            particle_weights,
+            particle_refractive_index_by_bin,
+            particle_is_floc
+        )):
+            if is_floc:
+                # Flocs use a synthetic finite-fractal aggregate structure-factor
+                # transport CDF. This replaces the previous Mie*structure blend
+                # and does not use HG or a primary-Mie floc form factor.
+                I = floc_synthetic_structure_profile(
+                    bin_idx,
+                    wl,
+                    mu,
+                    theta_rad
+                )
+
+            else:
+                m_rel = particle_complex_refractive_index_by_bin[bin_idx] / n_medium
+                x = 2.0 * np.pi * n_medium * radius / wl
+
+                S1, S2 = miepython.S1_S2(m_rel, x, mu)
+
+                # Unpolarised Mie intensity.
+                I = 0.5 * (np.abs(S1)**2 + np.abs(S2)**2)
+                I = np.real(I).astype(np.float64)
+
+            psd_weighted_profile += weight * I
+
+            # Direct angular CDF.
+            # No sin(theta) weighting, matching the existing 2D projected
+            # detector-circumference transport model.
+            angle_cdf = np.cumsum(I).astype(np.float64)
+
+            if angle_cdf[-1] > 0.0:
+                angle_cdf /= angle_cdf[-1]
+
+            per_particle_cdfs.append(angle_cdf)
+
+        all_profiles.append(psd_weighted_profile.astype(np.float64))
+        cdf_profiles.append(np.asarray(per_particle_cdfs, dtype=np.float64))
+
+    np.savez_compressed(
+        mie_cache_file,
+        all_profiles=np.asarray(all_profiles, dtype=np.float64),
+        cdf_profiles=np.asarray(cdf_profiles, dtype=np.float64)
+    )
+
+    print(f"Saved angular cache: {mie_cache_file}")
+
+
+# Export angular scattering as before.
+df_angles = pd.DataFrame({"Angle_deg": theta_deg})
+
+for wl_idx, wl in enumerate(wavelengths):
+    df_angles[f"I_{int(wl*1e9)}nm"] = all_profiles[wl_idx]
+
+csv_angles_path = os.path.join(OUTDIR, "angular_scattering_profiles.csv")
+df_angles.to_csv(csv_angles_path, index=False)
+print(f"✅ Saved {csv_angles_path}")
+
+plt.figure(figsize=(8, 5))
+
+for wl_idx, wl in enumerate(wavelengths):
+    plt.plot(theta_deg, all_profiles[wl_idx], label=f"{int(wl*1e9)} nm")
+
+plt.xlabel("Scattering angle (deg)")
+plt.ylabel("Intensity (a.u.)")
+plt.title("Angular scattering profiles - primary Mie + synthetic fractal floc structure + complex-index albedo")
+plt.legend(title="Wavelength")
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig(os.path.join(OUTDIR, "angular_scattering_profiles.png"), dpi=200)
+plt.close()
+
+print("✅ Saved angular_scattering_profiles.png")
+# ================= ANGLE SAMPLING (host-side) =================
+def sample_beta_angles(N, a1, a2):
+    N_half = N // 2
+    u_left = np.random.beta(a1, a2, N_half)
+    angles_left = (1-u_left) * (np.pi/2) - (np.pi/2)   # -pi/2 = straight up
+    angles_right = -angles_left
+    angles = np.concatenate([angles_left, angles_right])
+    if len(angles) < N:
+        angles = np.append(angles, 0.0)
+    return angles.astype(np.float64)
+
+# ================= CUDA KERNEL (CuPy RawKernel) =================
+cuda_src = r"""
+extern "C" {
+
+__device__ unsigned int xorshift32_state(unsigned int* state) {
+    unsigned int x = *state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    *state = x;
+    return x;
+}
+
+__device__ float rnd_uniform(unsigned int* state) {
+    unsigned int r = xorshift32_state(state);
+    return (float)(r * 2.3283064e-10f);
+}
+
+__device__ float gaussian_jitter(unsigned int* state, float std_rad) {
+    if (std_rad <= 0.0f) return 0.0f;
+
+    float u1 = fmaxf(rnd_uniform(state), 1.0e-12f);
+    float u2 = rnd_uniform(state);
+
+    return std_rad *
+        sqrtf(-2.0f * logf(u1)) *
+        cosf(2.0f * 3.1415927f * u2);
+}
+
+__device__ int cdf_binary_search(
+    const double* cdf,
+    int n,
+    float u)
+{
+    int lo = 0;
+    int hi = n - 1;
+
+    while (lo < hi) {
+        int mid = (lo + hi) >> 1;
+
+        if (u <= (float)cdf[mid]) {
+            hi = mid;
+        }
+        else {
+            lo = mid + 1;
+        }
+    }
+
+    return lo;
+}
+
+__global__ void trace_kernel(
+    const float MAX_EXTINCTIONS,
+    const float MU_T,
+    const float PRIMARY_ROUGHNESS_STD_RAD,
+    const float FLOC_ROUGHNESS_STD_RAD,
+    const float R_REAL,
+    const float R_OFF,
+    const int VIS_SIZE,
+    const float VISUAL_SCALE,
+    const double* angles_init,
+    const int N_rays,
+    const double* extinction_cdf_table,
+    const double* particle_is_floc_table,
+    const double* single_scattering_albedo_table,
+    const double* angle_cdf_table,
+    const double* theta_table,
+    const int n_particles,
+    const int n_theta,
+    float* heatmap_flat,
+    float* exit_dir_out,
+    float* exit_x_out,
+    float* exit_y_out,
+    float* ray_path_length_out,
+    int* scatter_count_out,
+    unsigned int seed0,
+    unsigned int seed1,
+    unsigned int seed2)
+{
+    int tid = blockDim.x * blockIdx.x + threadIdx.x;
+    if (tid >= N_rays) return;
+
+    unsigned int state = seed0 + (unsigned int)tid * 74729u + 13u;
+    unsigned int stateJITTER = seed2 + (unsigned int)tid * 74729u + 13u;
+
+    float beam_sigma = 0.00001f;
+
+    float u1 = fmaxf(rnd_uniform(&state), 1.0e-12f);
+    float u2 = rnd_uniform(&state);
+
+    float gaussian =
+        sqrtf(-2.0f * logf(u1)) *
+        cosf(2.0f * 3.1415927f * u2);
+
+    float x0 = beam_sigma * gaussian;
+    float y0 = -(R_REAL + R_OFF);
+
+    float angle_init = (float)angles_init[tid];
+
+    float vx = sinf(angle_init);
+    float vy = cosf(angle_init);
+
+    if (vy < 0.0f) {
+        vx = -vx;
+        vy = -vy;
+    }
+
+    float b = x0 * vx + y0 * vy;
+    float c = x0 * x0 + y0 * y0 - R_REAL * R_REAL;
+    float disc = b * b - c;
+
+    if (disc <= 0.0f) return;
+
+    float t = -b - sqrtf(disc);
+    if (t < 0.0f) return;
+
+    float x = x0 + t * vx;
+    float y = y0 + t * vy;
+
+    int absorbed = 0;
+    int scatter_count = 0;
+    int extinction_count = 0;
+    float rpl = 0.0f;
+
+    const float HEATMAP_SAMPLE_SPACING = 1.0e-6f;
+
+    while (x * x + y * y <= R_REAL * R_REAL) {
+
+        if (extinction_count >= (int)MAX_EXTINCTIONS) {
+            absorbed = 1;
+            break;
+        }
+
+        if (MU_T <= 0.0f) {
+            absorbed = 1;
+            break;
+        }
+
+        float u_path = fmaxf(rnd_uniform(&state), 1.0e-12f);
+        float free_path = -logf(u_path) / MU_T;
+
+        int heatmap_steps = (int)ceilf(free_path / HEATMAP_SAMPLE_SPACING);
+        if (heatmap_steps < 1) heatmap_steps = 1;
+
+        float dx = vx * free_path / (float)heatmap_steps;
+        float dy = vy * free_path / (float)heatmap_steps;
+
+        int exited = 0;
+        float travelled = 0.0f;
+
+        for (int hs = 0; hs < heatmap_steps; hs++) {
+            x += dx;
+            y += dy;
+            travelled += free_path / (float)heatmap_steps;
+
+            if (x * x + y * y > R_REAL * R_REAL) {
+                exited = 1;
+                break;
+            }
+
+            int ix = (int)(((x + R_REAL) / (2.0f * R_REAL)) * (float)VIS_SIZE);
+            if (ix < 0) ix = 0;
+            if (ix > VIS_SIZE - 1) ix = VIS_SIZE - 1;
+
+            int iy = VIS_SIZE - 1 - (int)(((y + R_REAL) / (2.0f * R_REAL)) * (float)VIS_SIZE);
+            if (iy < 0) iy = 0;
+            if (iy > VIS_SIZE - 1) iy = VIS_SIZE - 1;
+
+            int pix_idx = iy * VIS_SIZE + ix;
+            atomicAdd(&heatmap_flat[pix_idx], VISUAL_SCALE);
+        }
+
+        rpl += travelled;
+
+        if (exited) {
+            break;
+        }
+
+        extinction_count++;
+
+        float u_particle = rnd_uniform(&state);
+        int pidx = cdf_binary_search(
+            extinction_cdf_table,
+            n_particles,
+            u_particle
+        );
+
+        float albedo_this = (float)single_scattering_albedo_table[pidx];
+        albedo_this = fminf(1.0f, fmaxf(0.0f, albedo_this));
+
+        if (rnd_uniform(&state) > albedo_this) {
+            absorbed = 1;
+            break;
+        }
+
+        scatter_count++;
+
+        float u_angle = rnd_uniform(&state);
+        int angle_offset = pidx * n_theta;
+
+        int idx = cdf_binary_search(
+            &angle_cdf_table[angle_offset],
+            n_theta,
+            u_angle
+        );
+
+        float theta_3d = (float)theta_table[idx];
+
+        float sign2 =
+            (rnd_uniform(&stateJITTER) < 0.5f) ? -1.0f : 1.0f;
+
+        float theta_projected = sign2 * theta_3d;
+
+        float ray_angle = atan2f(vy, vx);
+
+        bool is_floc_event =
+            particle_is_floc_table[pidx] > 0.5;
+
+        float roughness_std_this =
+            is_floc_event ? FLOC_ROUGHNESS_STD_RAD : PRIMARY_ROUGHNESS_STD_RAD;
+
+        float roughness_jitter =
+            gaussian_jitter(&stateJITTER, roughness_std_this);
+
+        float new_angle =
+            ray_angle + theta_projected + roughness_jitter;
+
+        vx = cosf(new_angle);
+        vy = sinf(new_angle);
+    }
+
+    if (absorbed == 0) {
+        exit_x_out[tid] = x;
+        exit_y_out[tid] = y;
+        exit_dir_out[tid] = atan2f(vy, vx);
+        ray_path_length_out[tid] = rpl;
+        scatter_count_out[tid] = scatter_count;
+    }
+}
+}
+"""
+
+# compile kernel
+module = cp.RawModule(code=cuda_src, options=('-std=c++11',))
+trace_kernel = module.get_function('trace_kernel')
+
+# ================= Adaptive chunk size helper =================
+def get_gpu_free_bytes():
+    """Return (free_bytes, total_bytes) using CuPy runtime; robust fallback."""
+    try:
+        free, total = cp.cuda.runtime.memGetInfo()
+        return int(free), int(total)
+    except Exception:
+        try:
+            dev = cp.cuda.Device()
+            mem = dev.mem_info  # may be tuple (free, total)
+            if isinstance(mem, tuple) and len(mem) == 2:
+                return int(mem[0]), int(mem[1])
+        except Exception:
+            pass
+    return None, None
+
+def estimate_chunk_size_bytes(free_bytes, safety_fraction=0.2, overhead_bytes=256*1024*1024):
+    """
+    Estimate a safe chunk size (in rays) given free GPU bytes.
+    - safety_fraction: fraction of reported free memory to use for buffers
+    - overhead_bytes: reserved bytes for other allocations / kernel overhead
+    """
+    # Conservative per-ray memory estimate (bytes):
+    # angles (double): 8 bytes per ray (but angles in device_full already allocated once)
+    # exit arrays per-chunk: 3 * 4 bytes = 12 bytes
+    # kernel stack / temp: assume 40 bytes per ray (conservative)
+    # So per-ray ~ 60 bytes. Use safety multiplier.
+    per_ray_bytes = 64  # conservative
+
+    usable = int(free_bytes * safety_fraction) - overhead_bytes
+    if usable <= 0:
+        return 0
+    return max(1, usable // per_ray_bytes)
+
+# ================= GPU wrapper function (adaptive chunking) =================
+from tqdm import tqdm
+
+# ================= GPU wrapper function (adaptive chunking) =================
+def trace_rays_gpu(angles_init_np, primary_roughness_std_rad, floc_roughness_std_rad,
+                   reflection_path_length, n_medium, n_external, R_REAL, RAY_OFFSET, VIS_SIZE,
+                   VISUAL_SCALE, particle_cdf_table_np,
+                   particle_is_floc_table_np, single_scattering_albedo_table_np, angle_cdf_table_np, theta_table_np,
+                   hdf5_file="ray_exits.h5",
+                   safety_fraction=0.01, min_chunk=100_000, max_chunk=1_000_000):
+    """
+    GPU ray tracing with adaptive chunking, streaming per-ray exit data to HDF5.
+    Returns only heatmap; exit data is streamed to HDF5.
+    """
+    N = angles_init_np.shape[0]
+
+    particle_cdf_dev = cp.asarray(particle_cdf_table_np, dtype=cp.float64)
+    particle_is_floc_dev = cp.asarray(particle_is_floc_table_np, dtype=cp.float64)
+    single_scattering_albedo_dev = cp.asarray(single_scattering_albedo_table_np, dtype=cp.float64)
+    angle_cdf_dev = cp.asarray(angle_cdf_table_np, dtype=cp.float64)
+    theta_dev = cp.asarray(theta_table_np, dtype=cp.float64)
+    heatmap_dev = cp.zeros((VIS_SIZE*VIS_SIZE,), dtype=cp.float32)
+    threads_per_block = 256
+
+    free_bytes, total_bytes = get_gpu_free_bytes()
+    if free_bytes is None:
+        estimated_chunk = 2_000_000
+    else:
+        est = estimate_chunk_size_bytes(free_bytes, safety_fraction=safety_fraction)
+        estimated_chunk = int(max(min_chunk, min(est, max_chunk)))
+
+    # Open HDF5 for streaming output
+    with h5py.File(hdf5_file, "w") as f:
+        dset_exit_x = f.create_dataset("exit_x", shape=(N,), dtype='f4', chunks=(estimated_chunk,))
+        dset_exit_y = f.create_dataset("exit_y", shape=(N,), dtype='f4', chunks=(estimated_chunk,))
+        dset_exit_dir = f.create_dataset("exit_dir", shape=(N,), dtype='f4', chunks=(estimated_chunk,))
+        dset_rpl = f.create_dataset("exit_rpl", shape=(N,), dtype='f4', chunks=(estimated_chunk,))
+        dset_scatter_count = f.create_dataset("scatter_count", shape=(N,), dtype='i4', chunks=(estimated_chunk,))
+
+        # Wrap per-chunk loop with tqdm
+        for start in tqdm(range(0, N, estimated_chunk), total=(N + estimated_chunk - 1)//estimated_chunk, desc="Tracing rays"):
+            end = min(N, start + estimated_chunk)
+            sz = end - start
+
+            angles_chunk = cp.asarray(angles_init_np[start:end], dtype=cp.float64)
+            # Initialise outputs to invalid sentinels.
+            # Absorbed rays deliberately do not write exit values in the CUDA kernel,
+            # so these sentinels prevent absorbed rays being mis-counted as real 0 deg exits.
+            exit_dir_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+            exit_x_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+            exit_y_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+            rpl_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+            scatter_count_chunk_dev = cp.full((sz,), -1, dtype=cp.int32)
+
+            blocks = (sz + threads_per_block - 1) // threads_per_block
+            seed0 = np.uint32(np.random.randint(1, 2**31 - 1))
+            seed1 = np.uint32(np.random.randint(1, 2**31 - 1))
+            seed2 = np.uint32(np.random.randint(1, 2**31 - 1))
+
+            # launch kernel with OOM handling
+            launched = False
+            attempt_chunk = estimated_chunk
+            while not launched:
+                try:
+                    trace_kernel((blocks,), (threads_per_block,),
+                        (
+                            np.float32(MAX_EXTINCTIONS),
+                            np.float32(mu_t),
+                            np.float32(primary_roughness_std_rad),
+                            np.float32(floc_roughness_std_rad),
+                            np.float32(R_REAL),
+                            np.float32(RAY_OFFSET),
+                            np.int32(VIS_SIZE),
+                            np.float32(VISUAL_SCALE),
+                            angles_chunk,
+                            np.int32(sz),
+                            particle_cdf_dev,
+                            particle_is_floc_dev,
+                            single_scattering_albedo_dev,
+                            angle_cdf_dev,
+                            theta_dev,
+                            np.int32(len(particle_cdf_table_np)),
+                            np.int32(len(theta_table_np)),
+                            heatmap_dev,
+                            exit_dir_chunk_dev,
+                            exit_x_chunk_dev,
+                            exit_y_chunk_dev,
+                            rpl_chunk_dev,
+                            scatter_count_chunk_dev,
+                            np.uint32(seed0),
+                            np.uint32(seed1),
+                            np.uint32(seed2)
+                        ))
+                    cp.cuda.Stream.null.synchronize()
+                    launched = True
+                except cp.cuda.memory.OutOfMemoryError:
+                    attempt_chunk = max(min_chunk, attempt_chunk // 2)
+                    if attempt_chunk < 2: raise
+                    end = min(N, start + attempt_chunk)
+                    sz = end - start
+                    cp._default_memory_pool.free_all_blocks()
+                    angles_chunk = cp.asarray(angles_init_np[start:end], dtype=cp.float64)
+                    # Reinitialise resized chunk outputs to invalid sentinels.
+                    exit_dir_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+                    exit_x_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+                    exit_y_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+                    rpl_chunk_dev = cp.full((sz,), cp.nan, dtype=cp.float32)
+                    scatter_count_chunk_dev = cp.full((sz,), -1, dtype=cp.int32)
+                    blocks = (sz + threads_per_block - 1) // threads_per_block
+                    estimated_chunk = attempt_chunk
+
+            # Write chunk to HDF5
+            dset_exit_dir[start:end] = cp.asnumpy(exit_dir_chunk_dev)
+            dset_exit_x[start:end] = cp.asnumpy(exit_x_chunk_dev)
+            dset_exit_y[start:end] = cp.asnumpy(exit_y_chunk_dev)
+            dset_rpl[start:end] = cp.asnumpy(rpl_chunk_dev)
+            dset_scatter_count[start:end] = cp.asnumpy(scatter_count_chunk_dev)
+
+            # Free GPU memory
+            del angles_chunk, exit_dir_chunk_dev, exit_x_chunk_dev, exit_y_chunk_dev, rpl_chunk_dev, scatter_count_chunk_dev
+            cp._default_memory_pool.free_all_blocks()
+
+    heatmap = cp.asnumpy(heatmap_dev).reshape((VIS_SIZE, VIS_SIZE))
+    return heatmap
+
+# ================= SIMULATION (main loop) =================
+from tqdm import tqdm
+import h5py
+import hashlib
+
+bulk_profiles = []
+
+
+detector_centers_rad = np.deg2rad(detector_angles)
+detector_accept = detector_acceptance_deg
+detector_hit_counts = {}
+# CLARITAS_44b: keep absolute detector scaling as well as conditional/normalised shapes.
+# This prevents absorption/albedo changes being hidden by later normalisation.
+detector_total_launched_by_wavelength = {}
+detector_valid_exit_by_wavelength = {}
+detector_absorbed_invalid_by_wavelength = {}
+
+# ================= DETECTOR GEOMETRY DIAGNOSTICS =================
+# These diagnostics do not change the ray tracing. They re-bin the same exit data
+# using position angle, outgoing direction angle, and scatter-count categories.
+MULTIPLY_SCATTERED_MIN_COUNT = 6
+
+def circular_angle_difference_deg(angle_deg, centre_deg):
+    return ((angle_deg - centre_deg + 180.0) % 360.0) - 180.0
+
+def detector_response_from_angles(
+    ray_angle_deg,
+    detector_angles_deg,
+    detector_acceptance_deg,
+    valid_mask=None
+):
+    if valid_mask is None:
+        valid_mask = np.ones_like(ray_angle_deg, dtype=bool)
+    else:
+        valid_mask = np.asarray(valid_mask, dtype=bool)
+
+    counts = []
+    for centre in detector_angles_deg:
+        delta = circular_angle_difference_deg(ray_angle_deg, centre)
+        hit_mask = valid_mask & (np.abs(delta) <= detector_acceptance_deg)
+        counts.append(np.sum(hit_mask))
+
+    counts = np.asarray(counts, dtype=np.float64)
+    total = np.sum(counts)
+    response = counts / total if total > 0.0 else np.zeros_like(counts)
+    return counts, response
+
+def save_detector_geometry_diagnostics(
+    wl_nm,
+    exit_x,
+    exit_y,
+    exit_dirs,
+    scatter_count,
+    detector_angles_deg,
+    detector_acceptance_deg,
+    outdir,
+    multiply_scattered_min_count=6
+):
+    exit_x = np.asarray(exit_x)
+    exit_y = np.asarray(exit_y)
+    exit_dirs = np.asarray(exit_dirs)
+    scatter_count = np.asarray(scatter_count)
+
+    valid_exit_mask = (
+        np.isfinite(exit_x) &
+        np.isfinite(exit_y) &
+        np.isfinite(exit_dirs) &
+        (scatter_count >= 0)
+    )
+
+    exit_position_angle_deg = (
+        np.rad2deg(np.arctan2(exit_x, exit_y)) + 360.0
+    ) % 360.0
+
+    # exit_dirs is atan2(vy, vx). Direction angle relative to +y/incident beam is atan2(vx, vy).
+    exit_direction_angle_deg = (
+        np.rad2deg(np.arctan2(np.cos(exit_dirs), np.sin(exit_dirs))) + 360.0
+    ) % 360.0
+
+    ballistic_mask = valid_exit_mask & (scatter_count == 0)
+    quasi_ballistic_mask = valid_exit_mask & (
+        (scatter_count > 0) &
+        (scatter_count < multiply_scattered_min_count)
+    )
+    multiply_scattered_mask = valid_exit_mask & (
+        scatter_count >= multiply_scattered_min_count
+    )
+
+    pos_counts, pos_response = detector_response_from_angles(
+        exit_position_angle_deg,
+        detector_angles_deg,
+        detector_acceptance_deg,
+        valid_exit_mask
+    )
+
+    dir_counts, dir_response = detector_response_from_angles(
+        exit_direction_angle_deg,
+        detector_angles_deg,
+        detector_acceptance_deg,
+        valid_exit_mask
+    )
+
+    ms_pos_counts, ms_pos_response = detector_response_from_angles(
+        exit_position_angle_deg,
+        detector_angles_deg,
+        detector_acceptance_deg,
+        multiply_scattered_mask
+    )
+
+    ballistic_pos_counts, ballistic_pos_response = detector_response_from_angles(
+        exit_position_angle_deg,
+        detector_angles_deg,
+        detector_acceptance_deg,
+        ballistic_mask
+    )
+
+    quasi_pos_counts, quasi_pos_response = detector_response_from_angles(
+        exit_position_angle_deg,
+        detector_angles_deg,
+        detector_acceptance_deg,
+        quasi_ballistic_mask
+    )
+
+    total_launched = float(len(exit_x))
+    valid_exit_count = float(np.sum(valid_exit_mask))
+    ms_count = float(np.sum(multiply_scattered_mask))
+    ballistic_count = float(np.sum(ballistic_mask))
+    quasi_count = float(np.sum(quasi_ballistic_mask))
+
+    diagnostics_df = pd.DataFrame({
+        "detector_angle_deg": detector_angles_deg,
+
+        # Raw counts.
+        "position_angle_counts_all": pos_counts,
+        "exit_direction_counts_all": dir_counts,
+        "position_angle_counts_multiply_scattered": ms_pos_counts,
+        "position_angle_counts_ballistic": ballistic_pos_counts,
+        "position_angle_counts_quasi_ballistic": quasi_pos_counts,
+
+        # Absolute responses: fractions of all launched rays. These preserve
+        # absorption/albedo effects and should be used when comparing attenuation.
+        "position_angle_fraction_launched_all": pos_counts / total_launched if total_launched > 0.0 else np.zeros_like(pos_counts),
+        "exit_direction_fraction_launched_all": dir_counts / total_launched if total_launched > 0.0 else np.zeros_like(dir_counts),
+        "position_angle_fraction_launched_multiply_scattered": ms_pos_counts / total_launched if total_launched > 0.0 else np.zeros_like(ms_pos_counts),
+        "position_angle_fraction_launched_ballistic": ballistic_pos_counts / total_launched if total_launched > 0.0 else np.zeros_like(ballistic_pos_counts),
+        "position_angle_fraction_launched_quasi_ballistic": quasi_pos_counts / total_launched if total_launched > 0.0 else np.zeros_like(quasi_pos_counts),
+
+        # Conditional responses: fractions of valid exits or subgroup rays.
+        # These describe angular shape but can hide absorption/albedo changes.
+        "position_angle_fraction_valid_exits_all": pos_counts / valid_exit_count if valid_exit_count > 0.0 else np.zeros_like(pos_counts),
+        "exit_direction_fraction_valid_exits_all": dir_counts / valid_exit_count if valid_exit_count > 0.0 else np.zeros_like(dir_counts),
+        "position_angle_fraction_subgroup_multiply_scattered": ms_pos_counts / ms_count if ms_count > 0.0 else np.zeros_like(ms_pos_counts),
+        "position_angle_fraction_subgroup_ballistic": ballistic_pos_counts / ballistic_count if ballistic_count > 0.0 else np.zeros_like(ballistic_pos_counts),
+        "position_angle_fraction_subgroup_quasi_ballistic": quasi_pos_counts / quasi_count if quasi_count > 0.0 else np.zeros_like(quasi_pos_counts),
+
+        # Previous sum-normalised hit distributions retained for backwards comparison only.
+        "position_angle_response_all_sum_normalised": pos_response,
+        "exit_direction_response_all_sum_normalised": dir_response,
+        "position_angle_response_multiply_scattered_sum_normalised": ms_pos_response,
+        "position_angle_response_ballistic_sum_normalised": ballistic_pos_response,
+        "position_angle_response_quasi_ballistic_sum_normalised": quasi_pos_response,
+    })
+
+    csv_path = os.path.join(outdir, f"detector_geometry_diagnostics_{wl_nm}nm.csv")
+    diagnostics_df.to_csv(csv_path, index=False)
+
+    png_path = os.path.join(outdir, f"detector_geometry_diagnostics_{wl_nm}nm.png")
+    plt.figure(figsize=(10, 6))
+    plt.plot(detector_angles_deg, diagnostics_df["position_angle_fraction_launched_all"], marker="o", label="Position angle, fraction of launched rays")
+    plt.plot(detector_angles_deg, diagnostics_df["exit_direction_fraction_launched_all"], marker="s", label="Exit direction, fraction of launched rays")
+    plt.plot(
+        detector_angles_deg,
+        diagnostics_df["position_angle_fraction_launched_multiply_scattered"],
+        marker="^",
+        label=f"Position angle, scatter_count >= {multiply_scattered_min_count}, fraction launched"
+    )
+    plt.xlabel("Detector angle (deg)")
+    plt.ylabel("Fraction of launched rays")
+    plt.title(f"Detector geometry diagnostics, {wl_nm} nm")
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(png_path, dpi=200)
+    plt.close()
+
+    valid_count = np.sum(valid_exit_mask)
+    scatter_summary_df = pd.DataFrame({
+        "category": [
+            "valid_exit",
+            "ballistic_scatter_count_eq_0",
+            "quasi_ballistic_1_to_min_minus_1",
+            "multiply_scattered_ge_min"
+        ],
+        "count": [
+            int(valid_count),
+            int(np.sum(ballistic_mask)),
+            int(np.sum(quasi_ballistic_mask)),
+            int(np.sum(multiply_scattered_mask))
+        ],
+        "fraction_of_valid_exits": [
+            1.0 if valid_count > 0 else 0.0,
+            float(np.sum(ballistic_mask) / valid_count) if valid_count > 0 else 0.0,
+            float(np.sum(quasi_ballistic_mask) / valid_count) if valid_count > 0 else 0.0,
+            float(np.sum(multiply_scattered_mask) / valid_count) if valid_count > 0 else 0.0,
+        ],
+        "multiply_scattered_min_count": [
+            multiply_scattered_min_count,
+            multiply_scattered_min_count,
+            multiply_scattered_min_count,
+            multiply_scattered_min_count,
+        ]
+    })
+
+    summary_csv_path = os.path.join(outdir, f"detector_geometry_scatter_summary_{wl_nm}nm.csv")
+    scatter_summary_df.to_csv(summary_csv_path, index=False)
+
+    if np.any(valid_exit_mask):
+        max_scatter = int(np.max(scatter_count[valid_exit_mask]))
+        bins = np.arange(0, max_scatter + 2)
+        scatter_values, scatter_bins = np.histogram(scatter_count[valid_exit_mask], bins=bins)
+    else:
+        scatter_values = np.array([0])
+        scatter_bins = np.array([0, 1])
+
+    scatter_hist_df = pd.DataFrame({
+        "scatter_count": scatter_bins[:-1],
+        "ray_count": scatter_values
+    })
+
+    scatter_hist_csv_path = os.path.join(outdir, f"scatter_count_histogram_{wl_nm}nm.csv")
+    scatter_hist_df.to_csv(scatter_hist_csv_path, index=False)
+
+    scatter_hist_png_path = os.path.join(outdir, f"scatter_count_histogram_{wl_nm}nm.png")
+    plt.figure(figsize=(10, 5))
+    plt.bar(scatter_hist_df["scatter_count"], scatter_hist_df["ray_count"])
+    plt.yscale("log")
+    plt.xlabel("Scatter count")
+    plt.ylabel("Ray count, log scale")
+    plt.title(f"Scatter-count histogram, {wl_nm} nm")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(scatter_hist_png_path, dpi=200)
+    plt.close()
+
+    raw_exit_csv_path = os.path.join(outdir, f"exit_position_direction_scatter_{wl_nm}nm.csv")
+    pd.DataFrame({
+        "exit_x_m": exit_x,
+        "exit_y_m": exit_y,
+        "exit_position_angle_deg": exit_position_angle_deg,
+        "exit_direction_angle_deg": exit_direction_angle_deg,
+        "scatter_count": scatter_count,
+        "is_ballistic": ballistic_mask,
+        "is_quasi_ballistic": quasi_ballistic_mask,
+        "is_multiply_scattered": multiply_scattered_mask,
+    }).to_csv(raw_exit_csv_path, index=False)
+
+    print(f"✅ Saved {csv_path}")
+    print(f"✅ Saved {png_path}")
+    print(f"✅ Saved {summary_csv_path}")
+    print(f"✅ Saved {scatter_hist_csv_path}")
+    print(f"✅ Saved {scatter_hist_png_path}")
+    print(f"✅ Saved {raw_exit_csv_path}")
+
+    return diagnostics_df, scatter_summary_df
+
+def sample_laser_angles(N, half_angle_deg=2.0):
+    angles = np.random.uniform(
+        -np.deg2rad(half_angle_deg),
+        np.deg2rad(half_angle_deg),
+        N
+    )
+    return angles.astype(np.float64)
+
+for wl_idx, wl in enumerate(wavelengths):
+    print(f"--- Wavelength {int(wl*1e9)} nm ---")
+    angles_init = sample_beta_angles(N_RAYS, alpha1, alpha2)  # host numpy float64
+    #angles_init = sample_laser_angles(N_RAYS, half_angle_deg=2.0)
+    particle_cdf_table_np = np.array(particle_event_cdf, dtype=np.float64)
+    particle_diameter_table_np = np.array(particle_diameter_m, dtype=np.float64)
+    particle_is_floc_table_np = np.array(particle_is_floc, dtype=np.float64)
+    single_scattering_albedo_table_np = np.array(
+        single_scattering_albedo_by_bin,
+        dtype=np.float64
+    )
+    angle_cdf_table_np = np.array(cdf_profiles[wl_idx], dtype=np.float64)
+    theta_table_np = np.array(theta_rad, dtype=np.float64)
+
+    hdf5_file = os.path.join(OUTDIR, f"ray_exits_{int(wl*1e9)}nm.h5")
+
+    t0 = time.time()
+    # Call GPU tracer (adaptive chunking, HDF5 streaming)
+
+    print("DEBUG floc_event_probability:", floc_event_probability)
+    print("DEBUG particle_is_floc count:", np.sum(particle_is_floc))
+
+    heatmap = trace_rays_gpu(angles_init, 
+                             PRIMARY_ROUGHNESS_STD_RAD,
+                             FLOC_ROUGHNESS_STD_RAD,
+                             reflection_path_length,
+                             n_medium, n_external,
+                             R_REAL, RAY_OFFSET, VIS_SIZE, VISUAL_SCALE,
+                             particle_cdf_table_np,
+                             particle_is_floc_table_np, single_scattering_albedo_table_np, angle_cdf_table_np, theta_table_np,
+                             hdf5_file=hdf5_file)
+    t1 = time.time()
+    print(f"[INFO] trace_rays_gpu completed in {t1-t0:.2f} s")
+
+    # Load exit data from HDF5 for plotting and detector binning
+    with h5py.File(hdf5_file, "r") as f:
+        exit_x = f["exit_x"][:]
+        exit_y = f["exit_y"][:]
+        exit_dirs = f["exit_dir"][:]
+        exit_rpl = f["exit_rpl"][:]
+        scatter_count = f["scatter_count"][:]
+
+    valid_exit_mask = (
+        np.isfinite(exit_x) &
+        np.isfinite(exit_y) &
+        np.isfinite(exit_dirs) &
+        (scatter_count >= 0)
+    )
+
+    n_valid_exits = int(np.sum(valid_exit_mask))
+    n_absorbed_or_invalid = int(len(scatter_count) - n_valid_exits)
+    absorbed_or_invalid_fraction = (
+        n_absorbed_or_invalid / len(scatter_count)
+        if len(scatter_count) > 0 else 0.0
+    )
+
+    if n_valid_exits > 0:
+        print(f"Mean scatter count: {np.mean(scatter_count[valid_exit_mask]):.3e}")
+        print(f"Max scatter count: {np.max(scatter_count[valid_exit_mask])}")
+    else:
+        print("Mean scatter count: nan (no valid exits)")
+        print("Max scatter count: nan (no valid exits)")
+
+    print(f"Valid exit rays: {n_valid_exits} / {len(scatter_count)}")
+    print(f"Absorbed/invalid ray fraction: {absorbed_or_invalid_fraction:.6f}")
+
+    detector_geometry_df, detector_geometry_summary_df = save_detector_geometry_diagnostics(
+        int(wl * 1e9),
+        exit_x,
+        exit_y,
+        exit_dirs,
+        scatter_count,
+        detector_angles,
+        detector_acceptance_deg,
+        OUTDIR,
+        multiply_scattered_min_count=MULTIPLY_SCATTERED_MIN_COUNT
+    )
+
+    # Save heatmap (physically scaled, with boundary overlay)
+    masked = ma.masked_where(heatmap == 0, heatmap)
+
+    # ---- Robust LogNorm limits ----
+    if masked.count() > 0:
+        vmin = masked.min()
+        vmax = masked.max()
+    else:
+        # fallback to avoid crashing on fully empty heatmaps
+        vmin, vmax = 1e-12, R_REAL
+
+
+    plt.figure(figsize=(6, 6))
+
+    colors = [(0, 0, 0), (1, 1, 1)]
+    cmap = LinearSegmentedColormap.from_list("black_white", colors, N=256)
+    cmap.set_bad(color='black')
+
+    extent_mm = [
+        -R_REAL * 1000,  # xmin (mm)
+        R_REAL * 1000,  # xmax (mm)
+        -R_REAL * 1000,  # ymin (mm)
+        R_REAL * 1000   # ymax (mm)
+    ]
+
+    plt.imshow(
+        masked,
+        cmap=cmap,
+        aspect="equal",
+#        norm=LogNorm(vmin=1, vmax=np.max(heatmap)),
+        norm=LogNorm(vmin=vmin, vmax=vmax),
+        extent=extent_mm,
+        interpolation='gaussian'
+    )
+
+    # ---- Physical boundary overlay ----
+    circle = plt.Circle(
+        (0, 0),                 # center (mm)
+        R_REAL * 1000,          # radius (mm)
+        color='red',
+        linewidth=1.5,
+        fill=False,
+        linestyle='--'
+    )
+    plt.gca().add_patch(circle)
+
+    # ---- Axis formatting ----
+    plt.xlabel("x (mm)")
+    plt.ylabel("y (mm)")
+    plt.title(f"{mass_concentration_g_per_L} g/L, {int(wl*1e9)} nm")
+
+    start = -R_REAL * 1000
+    end = R_REAL * 1000
+    step = (end - start) / 5.0
+
+    plt.xticks(np.arange(start, end + step, step))
+    plt.yticks(np.arange(start, end + step, step))
+
+    plt.colorbar(label="Counts")
+    plt.tight_layout()
+
+    heatmap_path = os.path.join(OUTDIR, f"conc_{mass_concentration_g_per_L}_{int(wl*1e9)}nm.png")
+    plt.savefig(heatmap_path, dpi=200)
+    plt.close()
+
+    print(f"✅ Saved {heatmap_path}")
+
+    # Bulk angular scattering histogram. Only real exits are included.
+    exit_dirs_valid = exit_dirs[valid_exit_mask]
+
+    if exit_dirs_valid.size > 0:
+        exit_dirs_deg = np.rad2deg(exit_dirs_valid)
+        hist_bulk, _ = np.histogram(exit_dirs_deg, bins=theta_deg, density=True)
+    else:
+        hist_bulk = np.zeros(len(theta_deg) - 1, dtype=np.float64)
+
+    bulk_profiles.append(hist_bulk)
+
+    # Compute exit position angles. Invalid/absorbed rays remain NaN.
+    exit_pos_angles = np.full_like(exit_x, np.nan, dtype=np.float64)
+    exit_pos_angles[valid_exit_mask] = (
+        np.rad2deg(np.arctan2(exit_x[valid_exit_mask], exit_y[valid_exit_mask])) + 360.0
+    ) % 360.0
+
+    # Save exit positions CSV
+    df_exits = pd.DataFrame({
+        "exit_x_m": exit_x,
+        "exit_y_m": exit_y,
+        "exit_rpl_m": exit_rpl,
+        "scatter_count": scatter_count,
+        "is_valid_exit": valid_exit_mask,
+        "is_absorbed_or_invalid": ~valid_exit_mask,
+        "is_ballistic": valid_exit_mask & (scatter_count == 0),
+        "exit_pos_angle_deg": exit_pos_angles,
+        "exit_dir_deg": (np.rad2deg(exit_dirs) + 360) % 360
+    })
+    exits_csv_path = os.path.join(OUTDIR, f"exit_points_{int(wl*1e9)}nm.csv")
+    df_exits.to_csv(exits_csv_path, index=False)
+    print(f"✅ Saved {exits_csv_path}")
+
+    # Detector binning (vectorized)
+    #
+    # Physical detector rule:
+    # - Forward/side detector hits from ballistic rays are allowed.
+    # - Backscatter-region detector bins, defined here as detector centre >= 90 deg,
+    #   are only allowed to count rays that have undergone at least one real
+    #   scattering/reflection interaction in the kernel.
+    #
+    # This prevents non-real backscatter caused by finite beam waist/divergence, boundary
+    # intersection, or detector acceptance overlap, while preserving circumference-detector
+    # geometry.
+    in_detector_semicircle = (
+        valid_exit_mask &
+        (exit_pos_angles >= 0) &
+        (exit_pos_angles <= 180)
+    )
+    pos_angles_semicircle = exit_pos_angles[in_detector_semicircle]
+    interacted_semicircle = (scatter_count[in_detector_semicircle] > 0)
+
+    if pos_angles_semicircle.size == 0:
+        counts = np.zeros_like(detector_angles, dtype=int)
+    else:
+        diffs = np.abs(pos_angles_semicircle[:, None] - detector_angles[None, :])
+        hits_mask = diffs <= detector_accept
+
+        backscatter_detector_bin = detector_angles >= 90
+        ballistic_ray = ~interacted_semicircle
+
+        # Suppress only ballistic contributions to backscatter detector bins.
+        hits_mask[ballistic_ray[:, None] & backscatter_detector_bin[None, :]] = False
+
+        counts = hits_mask.sum(axis=0).astype(int)
+
+    wl_nm_int = int(wl * 1e9)
+    detector_hit_counts[wl_nm_int] = counts
+    detector_total_launched_by_wavelength[wl_nm_int] = int(len(scatter_count))
+    detector_valid_exit_by_wavelength[wl_nm_int] = int(n_valid_exits)
+    detector_absorbed_invalid_by_wavelength[wl_nm_int] = int(n_absorbed_or_invalid)
+
+# ---------------- Final outputs: detector CSV and plots ----------------
+df_det = pd.DataFrame({"Detector_deg": detector_angles})
+for wl_nm, counts in detector_hit_counts.items():
+    df_det[f"H_{wl_nm}nm"] = counts
+det_csv_path = os.path.join(OUTDIR, "detector_hits.csv")
+df_det.to_csv(det_csv_path, index=False)
+print(f"✅ Saved {det_csv_path}")
+
+# Absolute detector-response CSV. Unlike the legacy detector_hits.csv, this
+# records counts as fractions of launched rays and valid exits, so changes in
+# absorption/albedo are not hidden by normalising each angular distribution to 1.
+df_det_abs = pd.DataFrame({"Detector_deg": detector_angles})
+for wl_nm, counts in detector_hit_counts.items():
+    launched = float(detector_total_launched_by_wavelength.get(wl_nm, np.sum(counts)))
+    valid_exits = float(detector_valid_exit_by_wavelength.get(wl_nm, np.sum(counts)))
+    absorbed_invalid = float(detector_absorbed_invalid_by_wavelength.get(wl_nm, 0))
+    detected_sum = float(np.sum(counts))
+
+    df_det_abs[f"counts_{wl_nm}nm"] = counts
+    df_det_abs[f"fraction_launched_{wl_nm}nm"] = counts / launched if launched > 0.0 else np.zeros_like(counts, dtype=float)
+    df_det_abs[f"fraction_valid_exits_{wl_nm}nm"] = counts / valid_exits if valid_exits > 0.0 else np.zeros_like(counts, dtype=float)
+    df_det_abs[f"sum_normalised_shape_{wl_nm}nm"] = counts / detected_sum if detected_sum > 0.0 else np.zeros_like(counts, dtype=float)
+    df_det_abs[f"valid_exit_fraction_{wl_nm}nm"] = valid_exits / launched if launched > 0.0 else 0.0
+    df_det_abs[f"absorbed_invalid_fraction_{wl_nm}nm"] = absorbed_invalid / launched if launched > 0.0 else 0.0
+
+det_abs_csv_path = os.path.join(OUTDIR, "detector_response_absolute.csv")
+df_det_abs.to_csv(det_abs_csv_path, index=False)
+print(f"✅ Saved {det_abs_csv_path}")
+
+plt.figure(figsize=(9,5))
+for wl_nm, counts in detector_hit_counts.items():
+    plt.plot(detector_angles, counts, '-o', label=f"{wl_nm} nm")
+plt.xlabel("Detector angle (deg)")
+plt.ylabel("Hit count")
+plt.title("Detector Hit Counts vs Angle (Physical Boundary Position)")
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.savefig(os.path.join(OUTDIR, "detector_hits.png"), dpi=200)
+plt.close()
+print(f"✅ Saved detector_hits.png")
+
+plt.figure(figsize=(6,6))
+ax = plt.subplot(111, projection='polar')
+for wl_nm, counts in detector_hit_counts.items():
+    thetas = np.deg2rad(detector_angles)
+    ax.plot(thetas, counts, '-o', label=f"{wl_nm} nm")
+ax.set_theta_zero_location("N")
+ax.set_theta_direction(-1)
+ax.set_thetalim(0, np.pi)
+ax.set_title("Detector hits (polar)")
+ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
+plt.tight_layout()
+plt.savefig(os.path.join(OUTDIR, "detector_hits_polar.png"), dpi=200)
+plt.close()
+print(f"✅ Saved detector_hits_polar.png")
+
+# Bulk angular scattering plots
+df_bulk = pd.DataFrame({"Angle_deg": theta_deg[:-1]})
+for wl_idx, wl in enumerate(wavelengths):
+    df_bulk[f"I_bulk_{int(wl*1e9)}nm"] = bulk_profiles[wl_idx]
+bulk_csv_path = os.path.join(OUTDIR, "bulk_angular_scattering_profiles.csv")
+df_bulk.to_csv(bulk_csv_path, index=False)
+
+plt.figure(figsize=(8,5))
+for wl_idx, wl in enumerate(wavelengths):
+    plt.plot(theta_deg[:-1], bulk_profiles[wl_idx], label=f"{int(wl*1e9)} nm")
+plt.xlabel("Scattering angle (deg)")
+plt.ylabel("Normalized intensity")
+plt.title("Bulk Angular Scattering Profiles")
+plt.legend(title="Wavelength")
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig(os.path.join(OUTDIR, "bulk_angular_scattering_profiles.png"), dpi=200)
+plt.close()
+print("✅ Simulation complete. Heatmaps + bulk angular scattering + detector hits + exit point plots saved.")
+
+# Wavelength-dependent detector response.
+# CLARITAS_44b plots absolute fraction of launched rays so absorption/albedo
+# changes are visible. Sum-normalised shapes are still in detector_response_absolute.csv.
+plt.figure(figsize=(9,5))
+for wl_nm, counts in detector_hit_counts.items():
+    launched = float(detector_total_launched_by_wavelength.get(wl_nm, np.sum(counts)))
+    counts_abs = counts / launched if launched > 0 else np.zeros_like(counts, dtype=float)
+    plt.plot(detector_angles, counts_abs, '-', label=f"{wl_nm} nm")
+plt.xlabel("Detector angle (deg)")
+plt.ylabel("Detector hits / launched rays")
+plt.title("Wavelength-dependent Detector Response - absolute")
+plt.grid(True, alpha=0.3)
+plt.xticks(range(0, 181, 10))
+plt.legend()
+plt.tight_layout()
+wavelength_response_path = os.path.join(OUTDIR, "detector_response_vs_wavelength.png")
+plt.savefig(wavelength_response_path, dpi=200)
+plt.close()
+print(f"✅ Saved {wavelength_response_path}")
+
+plt.figure(figsize=(6,6))
+ax = plt.subplot(111, projection='polar')
+for wl_nm, counts in detector_hit_counts.items():
+    launched = float(detector_total_launched_by_wavelength.get(wl_nm, np.sum(counts)))
+    counts_abs = counts / launched if launched > 0 else np.zeros_like(counts, dtype=float)
+    thetas = np.deg2rad(detector_angles)
+    ax.plot(thetas, counts_abs, '-o', label=f"{wl_nm} nm")
+ax.set_theta_zero_location("N")
+ax.set_theta_direction(-1)
+ax.set_thetalim(0, np.pi)
+ax.set_title("Wavelength-dependent Detector Response (polar, fraction launched)")
+ax.legend(loc='upper right', bbox_to_anchor=(1.3,1.0))
+plt.tight_layout()
+polar_response_path = os.path.join(OUTDIR, "detector_response_vs_wavelength_polar.png")
+plt.savefig(polar_response_path, dpi=200)
+plt.close()
+print(f"✅ Saved {polar_response_path}")
+
+
+# ---------------- Histogram parameters ----------------
+n_bins = 1000  # number of bins
+hist_color = "skyblue"
+hist_edge = "black"
+hist_alpha = 0.7
+
+# Compute histogram using only valid exit path lengths.
+# Absorbed rays are stored as NaN in CLARITAS_42b/42c and must not be
+# included in path-length diagnostics.
+exit_rpl_valid = exit_rpl[np.isfinite(exit_rpl)]
+
+if len(exit_rpl_valid) > 0:
+    hist_counts, bin_edges = np.histogram(exit_rpl_valid, bins=n_bins)
+else:
+    hist_counts = np.zeros(n_bins, dtype=np.int64)
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+
+# Replace zeros with 1 for log-scale plotting
+hist_counts_safe = np.where(hist_counts == 0, 1, hist_counts)
+
+# Compute bin centers
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+# ---------------- Plot histogram (log scale) ----------------
+plt.figure(figsize=(8,5))
+plt.bar(bin_centers, hist_counts_safe, width=(bin_edges[1]-bin_edges[0]),
+        color=hist_color, edgecolor=hist_edge, alpha=hist_alpha)
+plt.xlim(0, 2.5)                     # set x-axis from 0 to 0.02 meters
+plt.xticks(np.arange(0, 2.5, 0.25))  # set ticks every 0.002 meters
+plt.yscale("log")  # log scale for counts
+plt.xlabel("Exit Ray Path Length (m)")
+plt.ylabel("Counts (log scale)")
+plt.title("Histogram of Exit Ray Path Lengths (log scale)")
+plt.grid(True, which="both", alpha=0.3)
+plt.tight_layout()
+hist_png_path = "./exit_rpl_histogram_log.png"
+plt.savefig(hist_png_path, dpi=200)
+plt.close()
+print(f"✅ Saved log-scale histogram plot as {hist_png_path}")
+
+# ---------------- Save histogram data to CSV ----------------
+df_hist = pd.DataFrame({
+    "bin_center_m": bin_centers,
+    "counts": hist_counts,          # raw counts
+    "counts_for_log_plot": hist_counts_safe  # counts used for plotting
+})
+hist_csv_path = "./exit_rpl_histogram.csv"
+df_hist.to_csv(hist_csv_path, index=False)
+print(f"✅ Saved histogram data to {hist_csv_path}")
+
+# ----------------- Backscatter Fraction ---------------------
+# ================= DETECTOR-BASED BACKSCATTER (INTEGRATED) =================
+
+angles = detector_angles  # already defined
+counts = detector_hit_counts[622]  # or loop over wavelengths if needed
+
+# Convert to numpy arrays
+angles = np.array(angles)
+counts = np.array(counts)
+
+# Compute angular bin width (assumes uniform spacing)
+dtheta = np.deg2rad(angles[1] - angles[0])  # radians
+
+# Total signal (0-180°)
+total = np.sum(counts * dtheta)
+
+# Backscatter region (90-180°)
+mask_back = angles >= 90
+backscatter = np.sum(counts[mask_back] * dtheta)
+
+backscatter_fraction = backscatter / total if total > 0 else 0.0
+
+print("\n=========== DETECTOR-INTEGRATED BACKSCATTER ===========")
+print(f"Backscatter fraction (integrated): {backscatter_fraction:.6f}")
+print("======================================================")
+
+# ================= OPTICAL OBJECT DIAGNOSTICS =================
+
+optical_object_diagnostics_df = pd.DataFrame({
+    "effective_bin_index": np.arange(len(particle_diameter_m)),
+    "effective_bin_kind": effective_bin_kind,
+    "is_floc": particle_is_floc,
+    "diameter_um": particle_diameter_m * 1.0e6,
+    "mass_fraction": particle_weights,
+    "number_density_per_m3": particle_number_density_by_bin,
+    "sigma_s_m2": sigma_s,
+    "sigma_a_m2": sigma_a,
+    "sigma_t_m2": sigma_t,
+    "single_scattering_albedo": single_scattering_albedo_by_bin,
+    "solid_volume_fraction": solid_volume_fraction_by_bin,
+    "effective_refractive_index_real": particle_refractive_index_by_bin,
+    "effective_refractive_index_imag_k": particle_refractive_index_imag_k_by_bin,
+    "mu_s_by_bin_per_m": mu_s_by_bin,
+    "mu_a_by_bin_per_m": mu_a_by_bin,
+    "mu_t_by_bin_per_m": mu_t_by_bin,
+    "extinction_event_strength_by_bin_per_m": extinction_event_strength_by_bin,
+    "event_probability_extinction": particle_event_weights,
+    "g_by_bin": g_by_bin,
+    "floc_absorption_tau": floc_absorption_tau_by_bin,
+    "floc_absorption_coefficient_per_m": floc_absorption_coefficient_by_bin_per_m,
+    "floc_mean_chord_length_m": floc_mean_chord_length_by_bin_m,
+    "source_primary_min_um": source_primary_min_diameter_m * 1.0e6,
+    "source_primary_max_um": source_primary_max_diameter_m * 1.0e6,
+    "floc_band_index": floc_band_index_by_effective_bin,
+})
+
+optical_object_diagnostics_path = os.path.join(
+    OUTDIR,
+    f"optical_object_diagnostics_conc_{mass_concentration_g_per_L}.csv"
+)
+
+optical_object_diagnostics_df.to_csv(
+    optical_object_diagnostics_path,
+    index=False
+)
+
+print(f"✅ Saved {optical_object_diagnostics_path}")
+
+# ================= PSD COMPARISON OUTPUTS =================
+
+psd_compare_png = os.path.join(
+    OUTDIR,
+    "psd_original_vs_effective.png"
+)
+
+psd_compare_csv = os.path.join(
+    OUTDIR,
+    "psd_original_vs_effective.csv"
+)
+
+primary_um = primary_particle_diameter_m * 1.0e6
+effective_um = particle_diameter_m * 1.0e6
+
+df_primary_psd = pd.DataFrame({
+    "psd_type": "original_primary",
+    "diameter_m": primary_particle_diameter_m,
+    "diameter_um": primary_um,
+    "mass_fraction": primary_particle_weights,
+    "particle_mass_by_bin_kg": primary_particle_masses_kg,
+    "number_density_per_m3": primary_particle_number_density_by_bin,
+    "scattering_cross_section_m2": np.nan,
+    "mu_s_by_bin_per_m": np.nan,
+    "event_probability": np.nan,
+    "g_by_bin": np.nan,
+    "is_floc": False,
+    "effective_density_kg_per_m3": primary_particle_density_by_bin_kg_per_m3,
+    "source_primary_min_diameter_um": primary_um,
+    "source_primary_max_diameter_um": primary_um,
+    "source_primary_mass_fraction": primary_particle_weights,
+    "floc_band_index": primary_bin_floc_band_index,
+    "effective_bin_kind": "original_primary",
+    "primary_refractive_index_or_nan": n_particle
+})
+
+df_effective_psd = pd.DataFrame({
+    "psd_type": "effective",
+    "diameter_m": particle_diameter_m,
+    "diameter_um": effective_um,
+    "mass_fraction": particle_weights,
+    "particle_mass_by_bin_kg": particle_mass_by_bin_kg,
+    "number_density_per_m3": particle_number_density_by_bin,
+    "scattering_cross_section_m2": sigma_s,
+    "mu_s_by_bin_per_m": mu_s_by_bin,
+    "event_probability": particle_event_weights,
+    "g_by_bin": g_by_bin,
+    "is_floc": particle_is_floc,
+    "effective_density_kg_per_m3": particle_density_by_bin_kg_per_m3,
+    "source_primary_min_diameter_um": source_primary_min_diameter_m * 1.0e6,
+    "source_primary_max_diameter_um": source_primary_max_diameter_m * 1.0e6,
+    "source_primary_mass_fraction": source_primary_mass_fraction,
+    "floc_band_index": floc_band_index_by_effective_bin,
+    "effective_bin_kind": effective_bin_kind,
+    "primary_refractive_index_or_nan": particle_refractive_index_by_bin
+})
+
+if FLOC_ENABLED and len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M) > 0:
+    floc_band_summary_df = pd.DataFrame({
+        "floc_band_index": np.arange(len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M)),
+        "primary_band_max_diameter_m": FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M,
+        "primary_band_max_diameter_um": FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M * 1.0e6,
+        "floc_effective_diameter_m": FLOC_POOL_EFFECTIVE_DIAMETER_M,
+        "floc_effective_diameter_um": FLOC_POOL_EFFECTIVE_DIAMETER_M * 1.0e6,
+        "floc_mass_by_band_kg": floc_mass_by_band_kg,
+        "floc_effective_density_by_band_kg_per_m3": floc_effective_density_by_band_kg_per_m3,
+        "floc_fractal_dimension": np.full(
+            len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M),
+            FLOC_FRACTAL_DIMENSION
+        ),
+        "floc_scatter_efficiency": np.full(
+            len(FLOC_POOL_PRIMARY_BAND_MAX_DIAMETER_M),
+            FLOC_SCATTER_EFFICIENCY
+        ),
+    })
+
+    floc_band_summary_path = os.path.join(
+        OUTDIR,
+        "floc_band_summary.csv"
+    )
+
+    floc_band_summary_df.to_csv(
+        floc_band_summary_path,
+        index=False
+    )
+
+    print(f"✅ Saved {floc_band_summary_path}")
+
+df_psd_compare = pd.concat(
+    [df_primary_psd, df_effective_psd],
+    ignore_index=True
+)
+
+df_psd_compare.to_csv(
+    psd_compare_csv,
+    index=False
+)
+
+print(f"✅ Saved {psd_compare_csv}")
+
+plt.figure(figsize=(10, 6))
+
+plt.bar(
+    primary_um,
+    primary_particle_weights,
+    width=primary_um * 0.08,
+    alpha=0.35,
+    color="lightsteelblue",
+    label=f"Original primary PSD ({particle_density_kg_per_m3:.0f} kg/m³)"
+)
+
+effective_bin_kind_array = np.asarray(effective_bin_kind)
+
+unchanged_primary_mask = (
+    effective_bin_kind_array == "unchanged_primary"
+)
+
+residual_primary_mask = (
+    effective_bin_kind_array == "residual_primary"
+)
+
+# Use particle_is_floc as the authoritative floc mask.
+pooled_floc_mask = np.asarray(particle_is_floc, dtype=bool)
+
+plt.bar(
+    effective_um[unchanged_primary_mask],
+    particle_weights[unchanged_primary_mask],
+    width=effective_um[unchanged_primary_mask] * 0.08,
+    alpha=0.85,
+    color="tab:blue",
+    label="Effective PSD (unchanged coarse bins)"
+)
+
+plt.bar(
+    effective_um[residual_primary_mask],
+    particle_weights[residual_primary_mask],
+    width=effective_um[residual_primary_mask] * 0.08,
+    alpha=0.65,
+    color="tab:green",
+    label="Effective PSD (residual eligible primary bins)"
+)
+
+plt.bar(
+    effective_um[pooled_floc_mask],
+    particle_weights[pooled_floc_mask],
+    width=effective_um[pooled_floc_mask] * 0.08,
+    alpha=0.95,
+    color="tab:red",
+    edgecolor="black",
+    linewidth=0.6,
+    zorder=10,
+    label="Effective PSD (pooled floc bins)"
+)
+
+plt.xscale("log")
+plt.xlabel("Particle / floc diameter (um)")
+plt.ylabel("PSD mass fraction")
+plt.title("Original Primary PSD vs Fractal Pooled-Floc Effective PSD")
+plt.grid(True, which="both", alpha=0.3)
+plt.legend()
+plt.tight_layout()
+
+plt.savefig(psd_compare_png, dpi=200)
+plt.close()
+
+print(f"✅ Saved {psd_compare_png}")
+# ================= FLOC MODEL DIAGNOSTIC OUTPUTS =================
+
+floc_diag_csv = os.path.join(
+    OUTDIR,
+    "floc_model_diagnostics.csv"
+)
+
+floc_diag_png_1 = os.path.join(
+    OUTDIR,
+    "floc_primary_band_vs_effective_diameter.png"
+)
+
+floc_diag_png_2 = os.path.join(
+    OUTDIR,
+    "floc_density_vs_effective_diameter.png"
+)
+
+floc_diag_png_3 = os.path.join(
+    OUTDIR,
+    "floc_multiplier_vs_source_primary_mid_diameter.png"
+)
+
+primary_um = primary_particle_diameter_m * 1e6
+effective_um = particle_diameter_m * 1e6
+density_values = particle_density_by_bin_kg_per_m3
+source_mid_um = source_primary_geometric_mid_diameter_m * 1e6
+
+df_floc_diag = pd.DataFrame({
+    "effective_diameter_um": effective_um,
+    "source_primary_min_diameter_um": source_primary_min_diameter_m * 1e6,
+    "source_primary_max_diameter_um": source_primary_max_diameter_m * 1e6,
+    "source_primary_geometric_mid_diameter_um": source_mid_um,
+    "source_primary_mass_fraction": source_primary_mass_fraction,
+    "floc_diameter_multiplier": floc_diameter_multiplier_by_bin,
+    "weight_fraction": particle_weights,
+    "is_floc": particle_is_floc.astype(int),
+    "floc_band_index": floc_band_index_by_effective_bin,
+    "effective_bin_kind": effective_bin_kind,
+    "density_kg_per_m3": density_values,
+    "floc_effective_density_kg_per_m3": floc_effective_density_by_bin_kg_per_m3,
+    "target_floc_density_kg_per_m3": target_floc_density_by_bin,
+    "refractive_index": particle_refractive_index_by_bin,
+    "number_density_per_m3": particle_number_density_by_bin,
+    "sigma_s_m2": sigma_s,
+    "sigma_a_m2": sigma_a,
+    "sigma_t_m2": sigma_t,
+    "single_scattering_albedo": single_scattering_albedo_by_bin,
+    "solid_volume_fraction": solid_volume_fraction_by_bin,
+    "effective_refractive_index_real": particle_refractive_index_by_bin,
+    "effective_refractive_index_imag_k": particle_refractive_index_imag_k_by_bin,
+    "mu_s_by_bin_per_m": mu_s_by_bin,
+    "mu_a_by_bin_per_m": mu_a_by_bin,
+    "mu_t_by_bin_per_m": mu_t_by_bin,
+    "extinction_event_strength_by_bin_per_m": extinction_event_strength_by_bin,
+    "particle_event_weight": particle_event_weights,
+    "floc_mass_fraction_global": floc_mass_fraction,
+    "eligible_primary_spacing_m": eligible_primary_spacing_m,
+    "FLOC_COLLISION_LENGTH_M": FLOC_COLLISION_LENGTH_M
+})
+
+df_floc_diag.to_csv(
+    floc_diag_csv,
+    index=False
+)
+
+print(f"✅ Saved {floc_diag_csv}")
+
+plt.figure(figsize=(8, 6))
+
+plt.scatter(
+    source_mid_um[~particle_is_floc],
+    effective_um[~particle_is_floc],
+    s=60,
+    alpha=0.75,
+    label="Primary/residual bins"
+)
+
+plt.scatter(
+    source_mid_um[particle_is_floc],
+    effective_um[particle_is_floc],
+    s=80,
+    alpha=0.85,
+    label="Pooled floc bins"
+)
+
+plt.plot(
+    [primary_um.min(), primary_um.max()],
+    [primary_um.min(), primary_um.max()],
+    linestyle="--",
+    linewidth=1.5,
+    label="1:1 unchanged"
+)
+
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Source primary geometric-mid diameter (um)")
+plt.ylabel("Effective particle/floc diameter (um)")
+plt.title("Source Primary Band vs Effective Pooled-Floc Diameter")
+plt.grid(True, which="both", alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.savefig(floc_diag_png_1, dpi=200)
+plt.close()
+
+print(f"✅ Saved {floc_diag_png_1}")
+
+plt.figure(figsize=(8, 6))
+
+plt.scatter(
+    effective_um[~particle_is_floc],
+    density_values[~particle_is_floc],
+    s=60,
+    alpha=0.75,
+    label="Primary/residual bins"
+)
+
+plt.scatter(
+    effective_um[particle_is_floc],
+    density_values[particle_is_floc],
+    s=80,
+    alpha=0.85,
+    label="Pooled floc bins"
+)
+
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Effective diameter (um)")
+plt.ylabel("Density used in model (kg/m³)")
+plt.title("Effective Density vs Effective Diameter")
+plt.grid(True, which="both", alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.savefig(floc_diag_png_2, dpi=200)
+plt.close()
+
+print(f"✅ Saved {floc_diag_png_2}")
+
+plt.figure(figsize=(8, 6))
+
+plt.scatter(
+    source_mid_um[~particle_is_floc],
+    floc_diameter_multiplier_by_bin[~particle_is_floc],
+    s=60,
+    alpha=0.75,
+    label="Primary/residual bins"
+)
+
+plt.scatter(
+    source_mid_um[particle_is_floc],
+    floc_diameter_multiplier_by_bin[particle_is_floc],
+    s=80,
+    alpha=0.85,
+    label="Pooled floc bins"
+)
+
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Source primary geometric-mid diameter (um)")
+plt.ylabel("Effective diameter / source-mid diameter")
+plt.title("Pooled-Floc Diameter Multiplier vs Source Primary Band")
+plt.grid(True, which="both", alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.savefig(floc_diag_png_3, dpi=200)
+plt.close()
+
+print(f"✅ Saved {floc_diag_png_3}")
+
+# ================= REFRACTIVE INDEX DIAGNOSTIC OUTPUTS =================
+
+ri_diag_csv = os.path.join(
+    OUTDIR,
+    "floc_effective_complex_index_diagnostics.csv"
+)
+
+ri_diag_png = os.path.join(
+    OUTDIR,
+    "floc_effective_complex_index_vs_effective_diameter.png"
+)
+
+df_ri_diag = pd.DataFrame({
+    "effective_diameter_um": effective_um,
+    "source_primary_min_diameter_um": source_primary_min_diameter_m * 1e6,
+    "source_primary_max_diameter_um": source_primary_max_diameter_m * 1e6,
+    "is_floc": particle_is_floc.astype(int),
+    "density_kg_per_m3": particle_density_by_bin_kg_per_m3,
+    "solid_volume_fraction": solid_volume_fraction_by_bin,
+    "refractive_index_real": particle_refractive_index_by_bin,
+    "refractive_index_imag_k": particle_refractive_index_imag_k_by_bin,
+    "effective_complex_index_real": particle_refractive_index_by_bin,
+    "effective_complex_index_imag_k": particle_refractive_index_imag_k_by_bin,
+})
+
+df_ri_diag.to_csv(
+    ri_diag_csv,
+    index=False
+)
+
+print(f"✅ Saved {ri_diag_csv}")
+
+plt.figure(figsize=(8, 6))
+
+plt.scatter(
+    effective_um[~particle_is_floc],
+    particle_refractive_index_by_bin[~particle_is_floc],
+    s=60,
+    alpha=0.75,
+    label="Unchanged bins"
+)
+
+plt.scatter(
+    effective_um[particle_is_floc],
+    particle_refractive_index_by_bin[particle_is_floc],
+    s=80,
+    alpha=0.85,
+    label="Pooled floc bins"
+)
+
+plt.axhline(
+    n_medium,
+    linestyle="--",
+    linewidth=1.5,
+    label=f"Medium n = {n_medium:.3f}"
+)
+
+plt.axhline(
+    n_particle,
+    linestyle=":",
+    linewidth=1.5,
+    label=f"Solid particle n = {n_particle:.3f}"
+)
+
+plt.xscale("log")
+plt.xlabel("Effective diameter (um)")
+plt.ylabel("Effective refractive index")
+plt.title("Effective Effective Complex Index vs Effective Diameter")
+plt.grid(True, which="both", alpha=0.3)
+plt.legend()
+plt.tight_layout()
+
+plt.savefig(ri_diag_png, dpi=200)
+plt.close()
+
+print(f"✅ Saved {ri_diag_png}")
+
+print("MEAN_FREE_PATH_M =", MEAN_FREE_PATH_M)
+print("Transport mode = event-driven free-path sampling from mu_t")
+print("R_REAL =", R_REAL)
+print("CELL_DIAMETER =", 2*R_REAL)
+
+event_diagnostics_df = pd.DataFrame({
+    "effective_bin_index": np.arange(len(particle_diameter_m)),
+    "diameter_um": particle_diameter_m * 1.0e6,
+    "is_floc": particle_is_floc,
+    "effective_bin_kind": effective_bin_kind,
+    "mass_fraction": particle_weights,
+    "particle_mass_by_bin_kg": particle_mass_by_bin_kg,
+    "number_density_per_m3": particle_number_density_by_bin,
+    "sigma_s_m2": sigma_s,
+    "sigma_a_m2": sigma_a,
+    "sigma_t_m2": sigma_t,
+    "single_scattering_albedo": single_scattering_albedo_by_bin,
+    "mu_s_by_bin_per_m": mu_s_by_bin,
+    "mu_a_by_bin_per_m": mu_a_by_bin,
+    "mu_t_by_bin_per_m": mu_t_by_bin,
+    "extinction_event_strength_by_bin_per_m": extinction_event_strength_by_bin,
+    "event_probability": particle_event_weights,
+    "g_by_bin": g_by_bin,
+    "source_primary_min_um": source_primary_min_diameter_m * 1.0e6,
+    "source_primary_max_um": source_primary_max_diameter_m * 1.0e6,
+    "floc_band_index": floc_band_index_by_effective_bin
+})
+
+event_diagnostics_path = os.path.join(
+    OUTDIR,
+    "event_probability_diagnostics.csv"
+)
+
+event_diagnostics_df.to_csv(
+    event_diagnostics_path,
+    index=False
+)
+
+print(f"✅ Saved {event_diagnostics_path}")
+
+# ================= FLOC BIN CONCENTRATION DIAGNOSTICS =================
+
+floc_bin_diagnostics_df = pd.DataFrame({
+    "mass_concentration_g_per_L": np.full(
+        len(particle_diameter_m),
+        mass_concentration_g_per_L
+    ),
+    "effective_bin_index": np.arange(len(particle_diameter_m)),
+    "is_floc": particle_is_floc,
+    "effective_bin_kind": effective_bin_kind,
+    "floc_band_index": floc_band_index_by_effective_bin,
+
+    "effective_diameter_um": particle_diameter_m * 1.0e6,
+    "source_primary_min_um": source_primary_min_diameter_m * 1.0e6,
+    "source_primary_max_um": source_primary_max_diameter_m * 1.0e6,
+    "source_primary_mid_um": (
+        np.sqrt(source_primary_min_diameter_m * source_primary_max_diameter_m)
+        * 1.0e6
+    ),
+
+    "diameter_multiplier": floc_diameter_multiplier_by_bin,
+    "mass_fraction": particle_weights,
+    "source_primary_mass_fraction": source_primary_mass_fraction,
+    "particle_mass_kg": particle_mass_by_bin_kg,
+    "effective_density_kg_per_m3": particle_density_by_bin_kg_per_m3,
+    "number_density_per_m3": particle_number_density_by_bin,
+
+    "sigma_s_m2": sigma_s,
+    "sigma_a_m2": sigma_a,
+    "sigma_t_m2": sigma_t,
+    "single_scattering_albedo": single_scattering_albedo_by_bin,
+    "mu_s_by_bin_per_m": mu_s_by_bin,
+    "mu_a_by_bin_per_m": mu_a_by_bin,
+    "mu_t_by_bin_per_m": mu_t_by_bin,
+    "extinction_event_strength_by_bin_per_m": extinction_event_strength_by_bin,
+    "event_probability": particle_event_weights,
+    "g_by_bin": g_by_bin,
+
+    "global_floc_mass_fraction": np.full(
+        len(particle_diameter_m),
+        floc_mass_fraction
+    ),
+    "global_floc_event_probability": np.full(
+        len(particle_diameter_m),
+        floc_event_probability
+    ),
+    "FLOC_FRACTAL_DIMENSION": np.full(
+        len(particle_diameter_m),
+        FLOC_FRACTAL_DIMENSION
+    ),
+    "FLOC_COLLISION_LENGTH_M": np.full(
+        len(particle_diameter_m),
+        FLOC_COLLISION_LENGTH_M
+    ),
+    "FLOC_SCATTER_EFFICIENCY": np.full(
+        len(particle_diameter_m),
+        FLOC_SCATTER_EFFICIENCY
+    ),
+})
+
+floc_only_diagnostics_df = floc_bin_diagnostics_df[
+    floc_bin_diagnostics_df["is_floc"]
+].copy()
+
+floc_diag_path = os.path.join(
+    OUTDIR,
+    f"floc_bin_diagnostics_conc_{mass_concentration_g_per_L}.csv"
+)
+
+floc_only_diagnostics_df.to_csv(
+    floc_diag_path,
+    index=False
+)
+
+print(f"✅ Saved {floc_diag_path}")
+
+# ================= FLOC EVENT-WEIGHT BY BAND DIAGNOSTICS =================
+
+if np.any(particle_is_floc):
+    floc_event_df = pd.DataFrame({
+        "mass_concentration_g_per_L": mass_concentration_g_per_L,
+        "effective_bin_index": np.arange(len(particle_diameter_m)),
+        "floc_band_index": floc_band_index_by_effective_bin,
+        "effective_diameter_um": particle_diameter_m * 1.0e6,
+        "source_primary_min_um": source_primary_min_diameter_m * 1.0e6,
+        "source_primary_max_um": source_primary_max_diameter_m * 1.0e6,
+        "source_primary_mid_um": (
+            np.sqrt(source_primary_min_diameter_m * source_primary_max_diameter_m)
+            * 1.0e6
+        ),
+        "diameter_multiplier": floc_diameter_multiplier_by_bin,
+        "mass_fraction": particle_weights,
+        "particle_mass_kg": particle_mass_by_bin_kg,
+        "effective_density_kg_per_m3": particle_density_by_bin_kg_per_m3,
+        "number_density_per_m3": particle_number_density_by_bin,
+        "sigma_s_m2": sigma_s,
+        "mu_s_by_bin_per_m": mu_s_by_bin,
+        "event_probability": particle_event_weights,
+        "g_by_bin": g_by_bin,
+        "global_floc_event_probability": floc_event_probability,
+        "fraction_of_all_floc_events": np.where(
+            floc_event_probability > 0.0,
+            particle_event_weights / floc_event_probability,
+            0.0
+        )
+    })
+
+    floc_event_df = floc_event_df[
+        floc_event_df["floc_band_index"] >= 0
+    ].copy()
+
+    floc_event_df = floc_event_df.sort_values(
+        "effective_diameter_um"
+    )
+
+    floc_event_df["cumulative_fraction_of_floc_events"] = (
+        floc_event_df["fraction_of_all_floc_events"].cumsum()
+    )
+
+    floc_event_path = os.path.join(
+        OUTDIR,
+        f"floc_event_weight_by_band_conc_{mass_concentration_g_per_L}.csv"
+    )
+
+    floc_event_df.to_csv(
+        floc_event_path,
+        index=False
+    )
+
+    print(f"✅ Saved {floc_event_path}")
+else:
+    print("No floc bins present; skipped floc_event_weight_by_band diagnostic.")

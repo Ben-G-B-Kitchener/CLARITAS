@@ -1,0 +1,29 @@
+# Large cache and output files
+*.npz
+*.h5
+
+# Generated CSV and image outputs (keep only source)
+*.csv
+*.png
+
+# Sweep and calibration output directories (generated data)
+calib_sweep/
+floc_sweep/
+claritas_parameter_screen/
+
+# Benchmark and validation outputs (generated)
+claritas_reference/benchmark_outputs/
+claritas_reference/validation_outputs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
