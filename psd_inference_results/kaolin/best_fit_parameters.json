@@ -1,0 +1,25 @@
+{
+  "material": "kaolin",
+  "final_objective": 0.014095923940588822,
+  "c_ref_g_per_L": 1.5874010519681994,
+  "n_control_points": 5,
+  "parameters": [
+    -1.836841771481362,
+    -1.0494064236058473,
+    -0.2149246700640915,
+    0.5333935318551363,
+    1.2523003320008586,
+    -1.0217910850403427,
+    -0.6213113015549836,
+    -0.13449719496407175,
+    0.38014170827308175,
+    0.8708095409236674
+  ],
+  "parameterization": "log S(d,C)=A(d)+B(d)*log(C/C_ref), linearly interpolated in log diameter",
+  "nominal_concentration_fixed": true,
+  "mass_fraction_renormalized": true,
+  "optimizer_success": true,
+  "optimizer_message": "Optimization terminated successfully.",
+  "optimizer_fun_coarse": 0.014418520823575533,
+  "optimizer_nfev": 737
+}

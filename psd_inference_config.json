@@ -1,0 +1,36 @@
+{
+  "n_control_points": 5,
+  "concentration_model": "linear_in_log_concentration",
+  "max_psd_factor": 20.0,
+  "n_rays_coarse": 100000,
+  "n_rays_final": 1000000,
+  "seed": 24681357,
+  "objective": {
+    "linear_weight": 1.0,
+    "log_weight": 0.02,
+    "log_floor": 0.0005
+  },
+  "regularization": {
+    "baseline_strength": 0.002,
+    "size_smoothness_strength": 0.02,
+    "concentration_slope_strength": 0.002
+  },
+  "optimizer": {
+    "method": "Powell",
+    "maxiter": 30,
+    "xtol": 0.03,
+    "ftol": 0.0001
+  },
+  "forward_model": {
+    "n_medium": 1.33,
+    "n_particle": 1.59,
+    "sample_radius_m": 0.049,
+    "ray_offset_m": 0.005,
+    "detector_acceptance_deg": 6.5,
+    "alpha1": 1.0,
+    "alpha2": 100.0,
+    "density_kg_per_m3": 2600.0,
+    "max_internal_bounces": 64,
+    "chunk_size": 250000
+  }
+}

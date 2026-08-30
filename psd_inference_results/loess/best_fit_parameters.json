@@ -1,0 +1,25 @@
+{
+  "material": "loess",
+  "final_objective": 0.01224935950273257,
+  "c_ref_g_per_L": 1.5874010519681994,
+  "n_control_points": 5,
+  "parameters": [
+    0.9117860525539426,
+    0.4589187848523646,
+    0.009876206272284044,
+    -0.3510364262751813,
+    -0.7015641704087158,
+    -0.3240195917269154,
+    -0.14151077105085483,
+    0.013989490046452937,
+    0.18070943886345617,
+    0.30333260697213293
+  ],
+  "parameterization": "log S(d,C)=A(d)+B(d)*log(C/C_ref), linearly interpolated in log diameter",
+  "nominal_concentration_fixed": true,
+  "mass_fraction_renormalized": true,
+  "optimizer_success": true,
+  "optimizer_message": "Optimization terminated successfully.",
+  "optimizer_fun_coarse": 0.012228628559879882,
+  "optimizer_nfev": 718
+}

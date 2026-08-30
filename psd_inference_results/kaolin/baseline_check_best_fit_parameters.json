@@ -1,0 +1,21 @@
+{
+  "material": "kaolin",
+  "final_objective": 0.04925840417614152,
+  "c_ref_g_per_L": 1.5874010519681994,
+  "n_control_points": 5,
+  "parameters": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "parameterization": "log S(d,C)=A(d)+B(d)*log(C/C_ref), linearly interpolated in log diameter",
+  "nominal_concentration_fixed": true,
+  "mass_fraction_renormalized": true
+}
