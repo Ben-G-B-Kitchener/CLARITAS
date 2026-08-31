@@ -1,0 +1,53 @@
+{
+  "version": "3.3",
+  "material": "kaolin",
+  "final_objective": 0.024073767648419828,
+  "final_response_objective": 0.024073767648419828,
+  "regularisation": {
+    "departure": 0.0,
+    "size_smoothness": 0.0,
+    "cross_concentration": 0.0,
+    "concentration_scale": 0.0,
+    "concentration_scale_smoothness": 0.0
+  },
+  "n_control_points_per_concentration": 7,
+  "parameters": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "parameter_count": 24,
+  "parameterization": "independent concentration-specific PCHIP log-PSD multipliers + per-condition local concentration scale, cross-regularised",
+  "nominal_concentration_fixed": false,
+  "optical_physics_fixed": true,
+  "detector_scoring": "V24.3 exact hard two-plane apertures with unbiased x-reflection symmetry average; native exact hits retained",
+  "apparatus_physics_fixed": true,
+  "stirrer_interpretation": "continuous_on_no_settling_clock",
+  "mass_fraction_psd_renormalized": true,
+  "effective_concentration_scale_bounds": [
+    0.25,
+    2.0
+  ],
+  "max_psd_factor": 30.0
+}

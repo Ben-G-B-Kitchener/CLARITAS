@@ -1,0 +1,109 @@
+{
+  "version": "3.4",
+  "n_control_points": 7,
+  "interpolation": "pchip_in_log_diameter",
+  "max_psd_factor": 30.0,
+  "effective_concentration_scale_bounds": [
+    0.25,
+    2.0
+  ],
+  "n_rays_coarse": 1000000,
+  "n_rays_final": 5000000,
+  "seed": 24681357,
+  "objective": {
+    "linear_weight": 1.0,
+    "log_weight": 0.015,
+    "gradient_weight": 0.2,
+    "high_angle_shape_weight": 0.01,
+    "high_angle_degrees": [
+      140,
+      150,
+      160,
+      170
+    ],
+    "log_floor": 0.0005
+  },
+  "regularization": {
+    "departure_strength": 0.001,
+    "size_smoothness_strength": 0.004,
+    "cross_concentration_strength": 0.002,
+    "concentration_scale_strength": 0.004,
+    "concentration_scale_smoothness_strength": 0.002
+  },
+  "optimizer": {
+    "method": "Powell",
+    "local_maxfev": 900,
+    "joint_maxfev": 2200,
+    "xtol": 0.025,
+    "ftol": 0.0001
+  },
+  "quick": {
+    "n_rays_coarse": 250000,
+    "n_rays_final": 1000000,
+    "local_maxfev": 180,
+    "joint_maxfev": 450
+  },
+  "forward_model": {
+    "n_water": 1.33,
+    "n_particle": 1.59,
+    "n_acrylic": 1.4906,
+    "n_air": 1.0,
+    "tube_inner_radius_m": 0.0465,
+    "tube_outer_radius_m": 0.05,
+    "water_height_m": 0.426,
+    "sensor_height_above_bottom_m": 0.102,
+    "source_beam_sigma_m": 1e-05,
+    "alpha1": 1.0,
+    "alpha2": 100.0,
+    "density_kg_per_m3": 2600.0,
+    "max_iterations": 1000000,
+    "max_internal_bounces": 64,
+    "max_cell_bounces": 64,
+    "chunk_size": 250000,
+    "statistics_batch_rays": 250000,
+    "symmetry_average_exact": true,
+    "sensor_ring_inner_radius_m": 0.0505,
+    "sensor_ring_outer_radius_m": 0.0655,
+    "counterbore_depth_m": 0.008,
+    "through_bore_diameter_m": 0.004,
+    "counterbore_diameter_m": 0.0087,
+    "legacy_detector_acceptance_deg": 6.5,
+    "source_launch_radius_m": 0.0655
+  },
+  "experimental_interpretation": {
+    "stirrer": "continuous_on",
+    "settling_clock_used": false,
+    "note": "Effective PSD and local concentration are inferred as optical-volume ensemble properties under continuous stirring."
+  },
+  "geometry_provenance": {
+    "tube_inner_diameter_mm": 93.0,
+    "tube_outer_diameter_mm": 100.0,
+    "sensor_ring_inner_diameter_mm": 101.0,
+    "sensor_ring_outer_diameter_mm": 131.0,
+    "through_bore_diameter_mm": 4.0,
+    "counterbore_diameter_mm": 8.7,
+    "counterbore_depth_mm": 8.0,
+    "derived_through_bore_length_mm": 7.0,
+    "legacy_claritas_acceptance_half_angle_deg": 6.5,
+    "paper_conflict_note": "Section 5.3 prose states 3 mm through / 10 mm depth; Fig.3, Fig.4 machining caption and Fig.6 state 4 mm through / 8 mm depth. V24.4 defaults to drawing/machining values.",
+    "photodiode_active_area_note": "Not specified in the supplied paper; no invented active-area aperture is imposed.",
+    "source_launch_radius_mm_default": 65.5,
+    "source_launch_note": "The paper defines the ring bore but does not locate the LED die/luminous plane within the module. V24.4 defaults the launch reference to the ring outer face and exposes it as a configurable parameter."
+  },
+  "detector_estimator": {
+    "type": "hard_reconstructed_sensor_ring_bore_with_x_reflection_symmetry_average",
+    "selected_geometry": "4-mm diameter through-bore from r=50.5 to57.5 mm; 8.7-mm counterbore from57.5 to65.5 mm",
+    "native_exact_hits_retained": true,
+    "mirror_transform": "x->-x, vx->-vx",
+    "selected_score": "0.5*(hardware_native_hits + hardware_mirror_hits), normalized over detector channels",
+    "legacy_comparison": "original CLARITAS +/-6.5-degree boundary exit-position scorer; overlapping channels; not selected",
+    "kde_or_aperture_widening": false,
+    "extrapolation": false,
+    "batch_jackknife_uncertainty": true
+  },
+  "sampling_guidance": {
+    "normal_coarse_rays": 1000000,
+    "normal_final_rays": 5000000,
+    "note": "V24.4 first requires baseline validation of the corrected apparatus geometry. Do not interpret a full inverse fit until loess 0.5 g/L and kaolin 4 g/L regression checks are satisfactory."
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "version": "2.0",
+  "n_control_points": 7,
+  "interpolation": "pchip_in_log_diameter",
+  "max_psd_factor": 30.0,
+  "effective_concentration_scale_bounds": [0.25, 2.0],
+  "n_rays_coarse": 100000,
+  "n_rays_final": 1000000,
+  "seed": 24681357,
+  "objective": {
+    "linear_weight": 1.0,
+    "log_weight": 0.015,
+    "gradient_weight": 0.20,
+    "high_angle_shape_weight": 0.010,
+    "high_angle_degrees": [140, 150, 160, 170],
+    "log_floor": 0.0005
+  },
+  "regularization": {
+    "departure_strength": 0.0010,
+    "size_smoothness_strength": 0.0040,
+    "cross_concentration_strength": 0.0020,
+    "concentration_scale_strength": 0.0040,
+    "concentration_scale_smoothness_strength": 0.0020
+  },
+  "optimizer": {
+    "method": "Powell",
+    "local_maxfev": 900,
+    "joint_maxfev": 2200,
+    "xtol": 0.025,
+    "ftol": 0.0001
+  },
+  "quick": {
+    "n_rays_coarse": 25000,
+    "n_rays_final": 100000,
+    "local_maxfev": 180,
+    "joint_maxfev": 450
+  },
+  "forward_model": {
+    "n_medium": 1.33,
+    "n_particle": 1.59,
+    "sample_radius_m": 0.049,
+    "ray_offset_m": 0.005,
+    "detector_acceptance_deg": 6.5,
+    "alpha1": 1.0,
+    "alpha2": 100.0,
+    "density_kg_per_m3": 2600.0,
+    "max_internal_bounces": 64,
+    "chunk_size": 250000
+  }
+}

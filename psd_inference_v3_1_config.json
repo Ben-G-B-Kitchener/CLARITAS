@@ -1,0 +1,94 @@
+{
+  "version": "3.1",
+  "n_control_points": 7,
+  "interpolation": "pchip_in_log_diameter",
+  "max_psd_factor": 30.0,
+  "effective_concentration_scale_bounds": [
+    0.25,
+    2.0
+  ],
+  "n_rays_coarse": 100000,
+  "n_rays_final": 1000000,
+  "seed": 24681357,
+  "objective": {
+    "linear_weight": 1.0,
+    "log_weight": 0.015,
+    "gradient_weight": 0.2,
+    "high_angle_shape_weight": 0.01,
+    "high_angle_degrees": [
+      140,
+      150,
+      160,
+      170
+    ],
+    "log_floor": 0.0005
+  },
+  "regularization": {
+    "departure_strength": 0.001,
+    "size_smoothness_strength": 0.004,
+    "cross_concentration_strength": 0.002,
+    "concentration_scale_strength": 0.004,
+    "concentration_scale_smoothness_strength": 0.002
+  },
+  "optimizer": {
+    "method": "Powell",
+    "local_maxfev": 900,
+    "joint_maxfev": 2200,
+    "xtol": 0.025,
+    "ftol": 0.0001
+  },
+  "quick": {
+    "n_rays_coarse": 25000,
+    "n_rays_final": 100000,
+    "local_maxfev": 180,
+    "joint_maxfev": 450
+  },
+  "forward_model": {
+    "n_water": 1.33,
+    "n_particle": 1.59,
+    "n_acrylic": 1.4906,
+    "n_air": 1.0,
+    "tube_inner_radius_m": 0.0465,
+    "tube_outer_radius_m": 0.05,
+    "water_height_m": 0.426,
+    "sensor_height_above_bottom_m": 0.102,
+    "collimator_inner_plane_radius_m": 0.0505,
+    "collimator_outer_plane_radius_m": 0.0595,
+    "collimator_diameter_m": 0.004,
+    "source_beam_sigma_m": 1e-05,
+    "alpha1": 1.0,
+    "alpha2": 100.0,
+    "density_kg_per_m3": 2600.0,
+    "max_iterations": 1000000,
+    "max_internal_bounces": 64,
+    "max_cell_bounces": 64,
+    "chunk_size": 250000,
+    "detector_scoring_mode": "variance_reduced",
+    "detector_vr_bandwidth_factor": 3.0
+  },
+  "experimental_interpretation": {
+    "stirrer": "continuous_on",
+    "settling_clock_used": false,
+    "note": "Effective PSD and local concentration are inferred as optical-volume ensemble properties under continuous stirring."
+  },
+  "geometry_provenance": {
+    "tube_inner_diameter_mm": 93.0,
+    "tube_outer_diameter_mm": 100.0,
+    "sensor_ring_inner_diameter_mm": 101.0,
+    "collimator_diameter_mm": 4.0,
+    "counterbore_diameter_mm": 8.7,
+    "counterbore_depth_mm": 8.0,
+    "water_height_mm_default": 426.0,
+    "sensor_height_above_bottom_mm_default": 102.0,
+    "note": "Radial dimensions follow the supplied TARDIIS design paper. Water/sensor heights are published example defaults and are configurable."
+  },
+  "detector_estimator": {
+    "type": "fixed_bandwidth_product_epanechnikov_phase_space_kde",
+    "aperture_planes": 2,
+    "physical_aperture_diameter_mm": 4.0,
+    "bandwidth_factor": 3.0,
+    "physical_equivalent_normalization": "4*(a/h)^4",
+    "exact_binary_hits_also_computed": true,
+    "note": "Estimator changes detector scoring variance only; all optical ray paths and probabilities are unchanged."
+  }
+}
