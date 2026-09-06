@@ -1,0 +1,31 @@
+CLARITAS V24.16 validation status
+Date: 2026-09-06
+
+PACKAGING/HOST CHECKS
+PASS  Python py_compile for every shipped .py file.
+PASS  run_v24_16_sediment_transport_sweep.sh bash syntax.
+PASS  claritas_v24_16_config.json parse.
+PASS  Main and summarizer command-line parsers (`--help`).
+PASS  Host drift-law coefficient and size-monotonicity checks.
+PASS  Increasing D_t weakens radial and vertical segregation as required.
+PASS  Exact per-bin peak-density / Woodcock-density-bound checks at deterministic
+      interior points.
+PASS  Independent 2-D curved-vessel integration of representative fine/mid/coarse
+      PSD bins at every supplied D_t (volume-mean density scale = 1 within the
+      stated numerical tolerance).
+PASS  CUDA source host-C++ syntax surrogate: the extracted CUDA source parses as
+      GNU C++11 after replacing CUDA qualifiers/builtins with inert stubs. This
+      catches ordinary C/C++ syntax errors but is not a CUDA compilation test.
+
+CUDA RUNTIME STATUS
+NOT RUN IN PACKAGING ENVIRONMENT: CuPy/CUDA/NVCC are unavailable here.
+The release includes GPU coefficient, local-field, majorant, uniform-control
+and active Woodcock-transport checks in:
+  verify_v24_16_cuda_sediment_transport.py
+
+Run on the target CUDA system before the sweep:
+  rm -rf ~/.cupy/kernel_cache
+  python verify_v24_16_cuda_sediment_transport.py
+
+Then run the first-pass transport screen:
+  bash run_v24_16_sediment_transport_sweep.sh

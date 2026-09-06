@@ -1,0 +1,67 @@
+CLARITAS V24.16 — CUDA Vortex Sediment Drift–Diffusion
+Date: 2026-09-06
+
+Purpose
+-------
+Test whether continuous vortex stirring produces a physically meaningful,
+size-resolved spatial sediment field that changes the TARDIIS angular response,
+after V24.14/V24.15 showed that free-surface geometry alone is insufficient.
+
+Changes from V24.15
+-------------------
+1. Freezes the localized Scully free surface at the V24.15 non-destructive
+   reference geometry: a=20 mm, wall-to-centre D=50 mm.
+2. Adds a `stokes_drift_diffusion` sediment-transport model while retaining an
+   explicit `uniform` V24.15 regression branch.
+3. Computes per-PSD-bin Stokes response time
+      tau_p = rho_p d^2/(18 mu).
+4. Computes outward inertial/centrifugal slip from the frozen Scully flow
+      w_r = tau_p v_theta(r)^2/r.
+5. Computes gravitational settling
+      w_s = (rho_p-rho_w) g d^2/(18 mu).
+6. Balances those drifts against a scalar effective eddy diffusivity D_t,
+   representing unresolved stirring/recirculating mixing. D_t changes particle
+   transport only; it is not an optical multiplier.
+7. Generates the steady size-resolved density field
+      n_i(r,z) proportional to exp[A_i f(r)-B_i(z-zbottom)]
+   with f(r)=r^2/(a^2+r^2), A_i=tau_i*Omega_c^2*a^2/(2D_t),
+   and B_i=w_s,i/D_t.
+8. Independently volume-normalises every PSD bin over the actual curved water
+   volume. Integrated PSD-bin number/mass and requested bulk concentration are
+   therefore conserved.
+9. Adds CUDA Woodcock/delta tracking for the spatially varying event field,
+   using exact per-bin density maxima to form a rigorous global majorant.
+10. Samples accepted particle interactions from the local size-resolved event
+    distribution, so both collision frequency and interacting PSD vary with
+    position without modifying particle optical properties.
+11. Adds `sediment_transport_diagnostics.json` and
+    `sediment_transport_by_size.csv` with transport coefficients, local density
+    scales and Woodcock majorants.
+12. Adds a first-pass D_t screen at 2.5e-4, 5e-4, 1e-3 and 2e-3 m^2/s for
+    0.5, 2 and 4 g/L, plus uniform controls (15 cases total).
+13. Adds host mass-conservation/monotonicity tests and CUDA coefficient/field/
+    transport regression checks in `verify_v24_16_cuda_sediment_transport.py`.
+
+Not changed
+-----------
+DGB source calibration; hard detector geometry/scoring; V24.15 free-surface
+physics; material optical constants; nominal bulk PSD and concentration;
+particle morphology; hybrid event law; acrylic/cell optics; headspace-exit
+handling. Aggregation and fragmentation remain disabled for this diagnostic.
+No empirical sediment scattering multiplier, concentration multiplier or PSD
+boost factor is introduced.
+
+Model scope
+-----------
+This is a first drift-diffusion closure, not CFD. It uses Stokes slip and a
+single scalar D_t. Finite-Re drag, explicit meridional carrier-flow velocity,
+anisotropic turbulent diffusion, wall resuspension/deposition kinetics and
+sediment-flow feedback are outside V24.16.
+
+Packaging validation
+--------------------
+The packaged release is checked for Python compilation, shell syntax, JSON
+parsing, analytic/independent mass conservation and transport monotonicity.
+CUDA runtime verification is supplied but cannot be executed in the packaging
+environment when CuPy/CUDA/NVCC are unavailable. Run the supplied verifier on
+the target CUDA workstation before the production sweep.
