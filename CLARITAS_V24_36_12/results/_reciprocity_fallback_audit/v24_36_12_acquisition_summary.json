@@ -1,0 +1,48 @@
+{
+  "gpu_acquisition_complete": true,
+  "cuda_compile_seconds": 24.027860399997735,
+  "complete_kernel_cuda_compile_seconds": 22.24651670000094,
+  "samples_per_bin": 40000,
+  "smooth_control_samples_per_bin": 8000,
+  "production_reflection_limit": 65,
+  "diagnostic_reflection_limit": 512,
+  "materials": [
+    "loess",
+    "kaolin"
+  ],
+  "audited_bins": {
+    "loess": 38,
+    "kaolin": 28
+  },
+  "production_core_cuda_sha256": "a64339e0167644cae3abe86294aaae1001a9d398cd60ebc36e54eedadef98671",
+  "audit_cuda_sha256": "e6d80430d613f070a21132454ca52ba776fd1633cc496f34d1b3beb65d472491",
+  "particle_k_forced_zero": true,
+  "roughness_rms_slope_deg": 25.0,
+  "microfacet_sampler_classification": "raw Beckmann D(m)|m.n| sampled by Gaussian slopes, then facing rejection up to 8 attempts; no Smith VNDF or explicit masking/shadowing term in production kernel",
+  "release": "V24.36.12",
+  "diagnostic_only": true,
+  "production_ray_campaign_authorized": false,
+  "process_correction_authorized": false,
+  "sediment_transport_run": false,
+  "table_rows": {
+    "complete_kernel_reciprocity_pairs": 726,
+    "complete_kernel_reciprocity_summary": 22,
+    "fallback_flux_decomposition": 264,
+    "macro_tir_reciprocal_flux": 2,
+    "macro_tir_transition_matrix": 2376,
+    "macro_tir_flux_by_bin": 66,
+    "macro_tir_flux_aggregate": 2,
+    "fallback_transition_classes": 168960,
+    "candidate_escape_rejection": 67584,
+    "reciprocity_pairs": 330,
+    "reciprocity_residuals": 330,
+    "fixed_microfacet_reversibility": 4,
+    "stochastic_microfacet_reciprocity": 8,
+    "microfacet_visibility_audit": 8,
+    "microfacet_visibility_histogram": 144,
+    "trapped_basin_survival": 33792,
+    "trapped_basin_escape_hazard": 33792,
+    "probability_conservation": 66,
+    "rough_smooth_control": 66
+  }
+}

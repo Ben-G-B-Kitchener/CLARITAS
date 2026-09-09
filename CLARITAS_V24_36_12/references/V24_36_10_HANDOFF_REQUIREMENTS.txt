@@ -1,0 +1,1421 @@
+You are continuing development of my CLARITAS CUDA optical transport model.
+
+Two principles remain non-negotiable:
+
+    FIX THE PROCESS, NOT THE CURVE.
+
+and:
+
+    NO AVOIDABLE RELEASE ERRORS.
+
+A third requirement is now equally important:
+
+    FINISH THE COMPLETE RELEASE WORKFLOW BEFORE REPLYING.
+
+Do not stop after:
+- analysis;
+- partial implementation;
+- host testing;
+- “the ZIP still needs building”;
+- “one final gate remains”;
+- “the release is almost ready”.
+
+If a release is scientifically justified, your response must contain a
+TANGIBLE DELIVERABLE:
+
+    AN ACTUAL FINAL ZIP FILE
+
+that has been:
+
+    built
+    ->
+    integrity tested
+    ->
+    clean extracted
+    ->
+    verified from the extracted copy
+    ->
+    hashed
+    ->
+    handed to me with exact run commands.
+
+I cannot do anything useful with a progress report.
+
+======================================================================
+1. AUTHORITATIVE BASELINE
+======================================================================
+
+The trusted production physics baseline remains:
+
+    V24.29
+
+V24.29 contains the validated exact-Mie scattering EVENT-RATE correction.
+
+Do not silently promote later experimental physics.
+
+The following remain frozen unless a specific process defect is proven:
+
+- V24.29 exact-Mie event rate;
+- Qsca<1 treatment;
+- detector geometry;
+- apparatus geometry;
+- optical constants;
+- PSDs;
+- source geometry;
+- detector response;
+- production RNG behavior before any explicitly changed process.
+
+======================================================================
+2. CURRENT AUTHORITATIVE DIAGNOSTIC RESULT — V24.36.9
+======================================================================
+
+V24.36.9 successfully audited the trapped-ray/internal-reflection process.
+
+Important findings:
+
+1. The old production internal-reflection loop has an effective
+   65-reflection limit.
+
+2. Reaching that limit causes a numerical failure/termination.
+
+3. In the current k=0 nonabsorbing particle model, this is a genuine
+   nonphysical probability/energy sink.
+
+4. However, the 65-reflection cap is NOT the root cause of the trapped
+   population.
+
+5. Extending the same process diagnostically beyond 65 showed that many
+   histories remain trapped for hundreds of reflections.
+
+Approximate event-weighted results:
+
+KAOLIN
+
+    internal-reflection histories:
+        ~8.20%
+
+    smooth-sphere control:
+        ~3.16%
+
+    production cap loss:
+        ~0.347%
+
+    of production cap hits still trapped at:
+        128 reflections: ~87.4%
+        256 reflections: ~78.2%
+        512 reflections: ~71.2%
+
+    mean internal reflections per finite-interface event:
+        rough:  ~1.730
+        smooth: ~0.0409
+
+    TIR share of rough internal reflections:
+        ~97.66%
+
+LOESS
+
+    internal-reflection histories:
+        ~8.54%
+
+    smooth-sphere control:
+        ~3.33%
+
+    production cap loss:
+        ~0.348%
+
+    of production cap hits still trapped at:
+        128 reflections: ~87.6%
+        256 reflections: ~77.9%
+        512 reflections: ~71.2%
+
+    mean internal reflections per finite-interface event:
+        rough:  ~1.746
+        smooth: ~0.0431
+
+    TIR share:
+        ~97.58%
+
+The smooth-sphere control produced:
+
+    no capped histories
+    no equivalent long-lived TIR population.
+
+======================================================================
+3. MOST IMPORTANT V24.36.9 FINDING
+======================================================================
+
+The long-lived population is strongly associated with the interaction of:
+
+    rough/microfacet optical normals
+        +
+    ideal spherical macro-geometry
+        +
+    geometric-normal fallback.
+
+At high internal-reflection order:
+
+    TIR fraction approaches essentially 100%
+
+and:
+
+    geometric-fallback fraction approaches essentially 100%.
+
+For example, by order >=60:
+
+    TIR fraction ~99.998–99.999%
+    fallback fraction ~99.91%
+
+An especially important result is:
+
+    P(escape on next bounce)
+        approximately equals
+    P(no fallback on next bounce)
+
+within the long-lived population.
+
+Example observed for kaolin near reflection order 256:
+
+    escape hazard ~0.000220
+
+and:
+
+    1 - fallback fraction ~0.000220
+
+to numerical precision.
+
+This strongly suggests that:
+
+    fallback keeps the ray in the macro-sphere TIR basin
+
+while:
+
+    a rare accepted rough-surface interaction provides the route out.
+
+======================================================================
+4. REPRESENTATIVE LONG-LIVED PATH BEHAVIOR
+======================================================================
+
+Representative 512-reflection paths showed the following pattern.
+
+A ray:
+
+1. enters the particle;
+
+2. undergoes an early rough-interface event;
+
+3. is redirected into a high-angular-momentum trajectory relative to
+   the ideal spherical macro-surface;
+
+4. reaches the next ideal sphere boundary at very grazing incidence;
+
+5. the rough optical-normal result is frequently judged geometrically
+   incompatible;
+
+6. the algorithm falls back to the geometric sphere normal;
+
+7. the geometric sphere interface is above critical incidence;
+
+8. TIR occurs;
+
+9. this repeats for hundreds of encounters.
+
+Representative trapped rays showed macro-sphere incidence angles such as:
+
+    ~88.7 degrees
+
+or:
+
+    ~82.8 degrees
+
+and remained in the trapped state for hundreds of reflections.
+
+Importantly, some rough-normal interactions predicted NON-TIR escape,
+but fallback converted them back into geometric-normal TIR.
+
+That means roughness can apparently couple a ray INTO the macro-TIR basin,
+while the fallback logic can suppress the corresponding rough-interface
+mechanisms that would couple it OUT.
+
+This raises a serious:
+
+    RECIPROCITY
+    / DETAILED-BALANCE
+    / PHYSICAL-BOUNDARY-CONSISTENCY
+
+question.
+
+======================================================================
+5. CORRECTION TO EARLIER ESTIMATE
+======================================================================
+
+An earlier approximate estimate suggested cap-reaching histories accounted
+for ~44–45% of all internal reflections.
+
+V24.36.9's proper event-weighted accounting corrected that.
+
+The correct values are approximately:
+
+    kaolin:
+        ~13.05%
+
+    loess:
+        ~12.97%
+
+of all counted internal reflections.
+
+Use the V24.36.9 result, not the earlier estimate.
+
+======================================================================
+6. STATUS OF THE 25-DEGREE BECKMANN ROUGHNESS
+======================================================================
+
+The inherited model uses:
+
+    RMS slope angle = 25 degrees
+
+or approximately:
+
+    alpha = tan(25 degrees) ~0.4663.
+
+The parameter can be traced into older CLARITAS lineage.
+
+However, no independent evidence has yet been found that 25 degrees was:
+
+- measured from microscopy;
+- measured from profilometry;
+- measured separately for kaolin;
+- measured separately for loess;
+- derived from known morphology;
+- supported by a specific literature value applicable to these sediments.
+
+Therefore classify it as:
+
+    an inherited, physically motivated but unvalidated morphology parameter.
+
+Do NOT change it in order to improve H170.
+
+Do NOT call it first-principles physics.
+
+Do NOT automatically call it a fudge factor either unless provenance
+shows it was originally tuned empirically.
+
+======================================================================
+7. OBJECTIVE OF THE NEXT RELEASE
+======================================================================
+
+The next release must determine whether the present rough-interface /
+geometric-fallback construction violates:
+
+    reciprocity
+    detailed balance
+    physically symmetric coupling
+    between accessible ray states.
+
+The central scientific question is:
+
+    CAN THE PRESENT BOUNDARY MODEL COUPLE A RAY INTO A MACRO-SPHERE
+    TIR BASIN MORE EASILY THAN IT CAN COUPLE THE REVERSE RAY OUT?
+
+If YES and this is caused by the fallback construction, we have identified
+a real process defect.
+
+If NO, then the trapped population may instead be a legitimate consequence
+of the stochastic rough-boundary model and we must derive an appropriate
+loss-free continuation treatment.
+
+Do not assume the answer.
+
+Measure it.
+
+======================================================================
+8. RELEASE VERSION DECISION
+======================================================================
+
+Do NOT automatically create V24.37.
+
+Possible outcomes:
+
+A. If this release remains diagnostic-only:
+
+       CLARITAS_V24_36_10
+
+B. If a genuine physical reciprocity/fallback defect is proven,
+   corrected from first principles, independently validated, and the
+   65-reflection numerical photon loss is also removed correctly:
+
+       CLARITAS_V24_37
+       release V24.37.0
+
+C. If diagnosis remains incomplete:
+
+       DO NOT force a physics release.
+
+However, even a diagnostic outcome must still produce a complete,
+usable ZIP if the diagnostic implementation itself is mature.
+
+======================================================================
+9. FIRST TASK — FORMALIZE THE BOUNDARY PROCESS
+======================================================================
+
+Before changing code, write down the actual process mathematically.
+
+For an internal interface record:
+
+- incoming ray direction;
+- geometric sphere normal;
+- sampled Beckmann optical normal;
+- refractive indices;
+- rough-normal Fresnel coefficients;
+- rough-normal TIR status;
+- rough-normal reflected/transmitted direction;
+- macro-geometry compatibility result;
+- whether fallback activates;
+- geometric-normal Fresnel coefficients;
+- geometric-normal TIR status;
+- final branch;
+- final direction;
+- RNG draw used.
+
+Explicitly describe the state transition:
+
+    incoming state
+        ->
+    sampled microfacet
+        ->
+    rough-interface proposal
+        ->
+    compatibility test
+        ->
+    accepted rough transition
+
+or:
+
+        ->
+    geometric fallback
+        ->
+    geometric transition.
+
+Do not hide this behind implementation detail.
+
+======================================================================
+10. DEFINE THE MACRO-TIR BASIN
+======================================================================
+
+Define a useful diagnostic state such as:
+
+    macro_TIR = geometric-sphere incidence exceeds the critical angle
+
+at the current internal boundary.
+
+Record for every relevant internal encounter:
+
+    macro_TIR before event
+    rough_TIR
+    fallback
+    macro_TIR after event
+    escaped yes/no.
+
+Classify transitions:
+
+    outside -> outside
+    outside -> TIR basin
+    TIR basin -> TIR basin
+    TIR basin -> outside
+    TIR basin -> escape
+
+This transition matrix is essential.
+
+======================================================================
+11. MEASURE FLUX INTO AND OUT OF THE TIR BASIN
+======================================================================
+
+For both materials and every Qsca>=1 PSD bin, measure:
+
+    P(outside -> TIR basin)
+
+    P(TIR basin -> outside)
+
+    P(TIR basin -> escape)
+
+    P(TIR basin -> TIR basin)
+
+and decompose by:
+
+- rough interaction accepted;
+- fallback activated;
+- TIR;
+- ordinary Fresnel reflection;
+- transmission/refraction.
+
+Report both raw counts and normalized probabilities.
+
+Also report projected-CSA/event-rate-weighted aggregate values.
+
+======================================================================
+12. CONDITIONAL DETAILED-BALANCE TEST
+======================================================================
+
+For representative states, construct paired forward/reverse tests.
+
+Take a physically valid transition:
+
+    state A -> state B
+
+where:
+
+- particle geometry is fixed;
+- interface point is fixed;
+- normal is known;
+- refractive indices are known.
+
+Reverse the ray:
+
+    state B_reverse -> state A_reverse
+
+and determine whether the model assigns a physically consistent reciprocal
+transition probability.
+
+Do this separately for:
+
+- accepted rough-normal transmission;
+- accepted rough-normal reflection;
+- geometric fallback transmission;
+- geometric fallback TIR;
+- transition into macro-TIR basin;
+- candidate escape from macro-TIR basin.
+
+Do not assume simple equality where Fresnel reciprocity requires
+radiance/Jacobian/refractive-index weighting.
+
+Use the physically correct reciprocity relation for the quantity being
+compared.
+
+Document that relation.
+
+======================================================================
+13. DO NOT USE A NAIVE “FORWARD PROBABILITY = REVERSE PROBABILITY” TEST
+======================================================================
+
+Optical reciprocity can involve:
+
+    n^2
+    projected solid angle
+    radiance/étendue factors
+
+depending on the representation.
+
+Therefore:
+
+do not claim a reciprocity violation merely because two raw Monte-Carlo
+probabilities differ.
+
+First derive the correct invariant for the state measure being sampled.
+
+Then test THAT.
+
+If the correct reciprocal weighting is uncertain:
+
+    investigate it before coding the acceptance criterion.
+
+Do not make the verifier scientifically wrong.
+
+======================================================================
+14. FIXED-MICROFACET REVERSIBILITY TEST
+======================================================================
+
+For a single deterministic microfacet:
+
+1. choose:
+       interface point
+       macro normal
+       microfacet normal
+       incoming direction
+       n1
+       n2
+
+2. compute the physically valid outgoing direction;
+
+3. reverse that exact path;
+
+4. use the same physical microfacet;
+
+5. verify the reversed path reconstructs the original state within
+   floating-point tolerance.
+
+Do this for:
+
+- reflection;
+- transmission/refraction;
+- near-critical refraction;
+- TIR where reversible interpretation applies.
+
+This isolates local optics from stochastic resampling.
+
+======================================================================
+15. STOCHASTIC MICROFACET RECIPROCITY
+======================================================================
+
+Then test the actual stochastic boundary model.
+
+The current model appears to draw a fresh Beckmann normal per interface
+encounter.
+
+Determine whether the sampling density for a forward transition and
+its reverse is mutually consistent under the chosen microfacet model.
+
+Investigate whether the microfacet sampling should include:
+
+- masking;
+- shadowing;
+- projected-area weighting;
+- visible-normal distribution;
+- Smith masking-shadowing;
+- another normalization appropriate to the physical model.
+
+Do NOT simply add these because modern microfacet BRDF literature uses them.
+
+First determine what physical surface model CLARITAS is claiming to represent.
+
+======================================================================
+16. IMPORTANT QUESTION: BECKMANN NDF OR VISIBLE-NORMAL DISTRIBUTION?
+======================================================================
+
+Inspect exactly how the current Beckmann normal is sampled.
+
+Determine whether it samples:
+
+    raw microfacet normal distribution
+
+or:
+
+    distribution of microfacets visible to the incoming ray.
+
+If it samples a raw NDF without visibility/masking correction, determine
+whether this can generate physically inaccessible local facets and whether
+the subsequent geometric fallback is acting as an ad-hoc visibility test.
+
+This may be central to the pathology.
+
+Do not assume.
+
+Demonstrate from code and statistics.
+
+======================================================================
+17. FALLBACK PHYSICS AUDIT
+======================================================================
+
+The fallback mechanism is now the primary suspect.
+
+For every fallback event record:
+
+- incoming direction;
+- geometric normal;
+- rough normal;
+- rough-normal incidence;
+- rough-normal TIR;
+- rough Fresnel R/T;
+- rough proposed direction;
+- why macro compatibility failed;
+- geometric-normal incidence;
+- geometric TIR;
+- geometric Fresnel R/T;
+- final direction;
+- whether the original random Fresnel draw is reused;
+- whether branch identity changes.
+
+Classify fallback transitions including:
+
+    rough transmission -> geometric TIR
+    rough non-TIR -> geometric TIR
+    rough reflection -> geometric transmission
+    rough TIR -> geometric non-TIR
+    etc.
+
+Report which classes actually occur and at what rate.
+
+======================================================================
+18. MEASURE WHETHER FALLBACK CREATES ONE-WAY TRAPPING
+======================================================================
+
+Specifically measure:
+
+A. How often does a rough interaction inject a ray into the macro-TIR basin?
+
+B. Once inside the basin, how often would the rough interface allow escape?
+
+C. Of those candidate escape events, how many are rejected by compatibility?
+
+D. How many are converted by fallback into geometric TIR?
+
+E. What fraction of trapped-basin lifetime is therefore attributable
+   specifically to fallback rejection of candidate escape states?
+
+This is the key diagnostic.
+
+======================================================================
+19. COMPARE WITH CONTROL BOUNDARY MODELS — DIAGNOSTIC ONLY
+======================================================================
+
+You may implement CONTROL kernels that do not change production physics.
+
+Useful controls may include:
+
+A. Smooth geometric sphere.
+
+B. Current rough model.
+
+C. Rough model with no geometric fallback, while marking incompatible
+   states rather than pretending they are physical.
+
+D. Fixed pre-generated rough surface / correlated facet control if
+   practical.
+
+E. Same rough normals replayed forward and reverse.
+
+These are diagnostic controls only.
+
+Do NOT promote one merely because H170 or Mie looks better.
+
+======================================================================
+20. DO NOT IMPLEMENT “NO FALLBACK” AS PRODUCTION YET
+======================================================================
+
+Removing fallback may create rays that are inconsistent with the sphere
+volume geometry.
+
+Therefore:
+
+    current fallback looks suspicious
+
+does NOT imply:
+
+    delete fallback.
+
+The next release must identify what a physically coherent replacement
+would be.
+
+If no replacement is yet justified, remain diagnostic-only.
+
+======================================================================
+21. EXPLICITLY AUDIT SURFACE-MODEL CONSISTENCY
+======================================================================
+
+The present particle model appears to combine:
+
+    ideal sphere for intersection geometry
+
+with:
+
+    stochastic microfacet normal for local optics.
+
+Ask whether a sampled rough normal corresponds to any actual local surface
+that could coexist with the ideal sphere at that point.
+
+If the microfacet changes the local tangent plane but not the local height
+or subsequent intersection geometry, determine what physical approximation
+is intended.
+
+Document whether the model is best described as:
+
+    rough optical boundary condition on a smooth macro-sphere
+
+rather than:
+
+    explicit rough particle geometry.
+
+Then assess whether the geometric compatibility fallback is mathematically
+consistent with that interpretation.
+
+======================================================================
+22. DO NOT MODIFY 25-DEGREE ROUGHNESS
+======================================================================
+
+Keep:
+
+    RMS slope = 25 degrees
+
+frozen during this investigation.
+
+Its physical provenance remains unvalidated, but changing it would confound
+the process audit.
+
+Do not run a parameter sweep to find a better H170.
+
+A limited diagnostic sensitivity study is only acceptable if explicitly
+used to understand the mathematics of the boundary model, not to choose
+a replacement parameter.
+
+======================================================================
+23. DO NOT MODIFY PARTICLE ABSORPTION
+======================================================================
+
+Keep:
+
+    k = 0
+
+for the frozen comparison.
+
+Do not add absorption as a trapped-ray escape mechanism.
+
+======================================================================
+24. DO NOT SOLVE THE PROBLEM BY RAISING THE CAP
+======================================================================
+
+The production 65-reflection numerical sink remains a known defect.
+
+Diagnostic continuation to 512 or beyond may remain available.
+
+But:
+
+    larger cap != physical solution.
+
+The final physics correction, whenever made, must have no unexplained
+numerical photon destruction.
+
+======================================================================
+25. NUMERICAL-PROBABILITY CONSERVATION
+======================================================================
+
+For every diagnostic/control model, explicitly account for:
+
+    external reflection
+    internal transmission
+    internal reflection
+    TIR
+    eventual escape
+    geometric incompatibility
+    fallback
+    cap censoring
+    numerical failure.
+
+Separate:
+
+    physical probability mass
+
+from:
+
+    diagnostic censoring.
+
+Never label 512-censored rays as absorbed, escaped, or failed physically.
+
+======================================================================
+26. REQUIRED GPU DIAGNOSTIC OUTPUTS
+======================================================================
+
+Produce at minimum:
+
+    v24_XX_macro_tir_transition_matrix.csv
+    v24_XX_macro_tir_flux_by_bin.csv
+    v24_XX_macro_tir_flux_aggregate.csv
+    v24_XX_fallback_transition_classes.csv
+    v24_XX_candidate_escape_rejection.csv
+    v24_XX_reciprocity_pairs.csv
+    v24_XX_reciprocity_residuals.csv
+    v24_XX_fixed_microfacet_reversibility.csv
+    v24_XX_stochastic_microfacet_reciprocity.csv
+    v24_XX_microfacet_visibility_audit.csv
+    v24_XX_trapped_basin_survival.csv
+    v24_XX_trapped_basin_escape_hazard.csv
+    v24_XX_probability_conservation.csv
+    v24_XX_process_decision.csv
+
+Also preserve the useful V24.36.9 trapped-ray outputs where applicable.
+
+======================================================================
+27. REQUIRED PLOTS
+======================================================================
+
+Generate process-diagnostic plots including:
+
+- flux into vs out of macro-TIR basin by particle diameter;
+- fallback probability vs reflection order;
+- candidate rough escape probability vs order;
+- fraction of candidate escapes rejected by fallback;
+- TIR-basin survival probability;
+- escape hazard vs reflection order;
+- accepted rough vs fallback transition counts;
+- reciprocity residual distributions;
+- smooth vs current rough control.
+
+Do not produce decorative plots.
+
+======================================================================
+28. DECISION QUESTIONS
+======================================================================
+
+The release must answer:
+
+A. Does the fixed-microfacet local interface obey reversibility?
+
+B. Does the stochastic Beckmann sampling obey the physically correct
+   reciprocal weighting?
+
+C. Is the current sampled normal distribution a raw NDF or a
+   visible-normal distribution?
+
+D. Does the compatibility fallback act as a hidden visibility/masking
+   correction?
+
+E. Does fallback conserve the correct transition probability?
+
+F. Can a rough event inject a ray into the macro-TIR basin?
+
+G. Can the reciprocal rough process couple it out?
+
+H. Are candidate escape states preferentially rejected?
+
+I. Does fallback convert candidate escape into geometric TIR?
+
+J. Is this asymmetric coupling sufficient to explain the long-lived
+   population?
+
+K. Can a specific process defect therefore be demonstrated?
+
+L. Is a first-principles correction sufficiently clear to implement?
+
+======================================================================
+29. VERSION DECISION AFTER THE AUDIT
+======================================================================
+
+If K = NO:
+
+    release diagnostic V24.36.10
+
+with production physics frozen.
+
+If K = YES but L = NO:
+
+    release diagnostic V24.36.10
+
+with production physics frozen and the defect documented.
+
+If K = YES and L = YES:
+
+    implement the smallest physically justified correction.
+
+Then independently validate it.
+
+Only then:
+
+    release V24.37.0.
+
+Do not create V24.37 merely because the diagnosis sounds persuasive.
+
+======================================================================
+30. REQUIREMENTS FOR ANY V24.37 PROCESS CORRECTION
+======================================================================
+
+A genuine physics correction must:
+
+- correct a demonstrated process defect;
+- conserve probability;
+- eliminate numerical photon destruction at the 65-reflection cap;
+- not introduce arbitrary loss;
+- not add H170 tuning;
+- not change 25-degree roughness unless independently justified;
+- not change V24.29 event rates;
+- not change Qsca<1;
+- not remap angles;
+- not fit Mie moments;
+- not suppress internal reflection empirically;
+- not introduce arbitrary branch factors.
+
+The correction must follow from the physical surface model itself.
+
+======================================================================
+31. NO-OP IDENTITY
+======================================================================
+
+If production physics changes:
+
+provide a correction-disabled mode.
+
+Using identical seeds:
+
+    V24.37 correction-disabled
+        ==
+    V24.29
+
+exactly where deterministic identity is expected.
+
+Verify:
+
+- event rates;
+- Qsca<1;
+- apparatus;
+- detector;
+- optical constants;
+- RNG behavior;
+- detector scores.
+
+======================================================================
+32. H170 REMAINS OUT OF THE DESIGN LOOP
+======================================================================
+
+Do not use measured H170 to:
+
+- choose boundary model;
+- choose roughness;
+- choose visibility function;
+- choose fallback rule;
+- choose escape treatment;
+- choose trapped-ray continuation;
+- choose thresholds.
+
+Only after a process correction has been fully derived and validated may
+the six sediment cases be run.
+
+Only then compare with measured H170.
+
+Do not retune afterward.
+
+======================================================================
+33. RELEASE ENGINEERING — NO MORE WHACK-A-MOLE
+======================================================================
+
+The project has had too many avoidable release failures.
+
+The development process must now be:
+
+    reproduce
+        ->
+    understand root cause
+        ->
+    inspect adjacent failure modes
+        ->
+    smallest change
+        ->
+    exact failed-path test
+        ->
+    real-path integration tests
+        ->
+    adversarial review
+        ->
+    final package
+        ->
+    clean extraction
+        ->
+    rerun
+        ->
+    deliver.
+
+Do not:
+
+    fix one exception
+    -> add one synthetic test
+    -> immediately package.
+
+======================================================================
+34. SYNTHETIC TESTS ARE SECONDARY
+======================================================================
+
+Synthetic/fake CUDA is useful only as supplementary validation.
+
+It cannot substitute for:
+
+- actual production functions;
+- actual writers;
+- actual schemas;
+- actual orchestration.
+
+For each known release failure retain a regression against the REAL path.
+
+======================================================================
+35. PERMANENT REGRESSIONS
+======================================================================
+
+Retain regressions for:
+
+1. event-code maximum bounds;
+
+2. quantized-mu comparison in native mu-space;
+
+3. actual Windows longest-path calculation;
+
+4. single-source release identity;
+
+5. stale metadata rejection by real finalizer;
+
+6. no bare NAN/INFINITY in CUDA;
+
+7. no nested Git Bash;
+
+8. sys.executable for Python children;
+
+9. zero-ledger actual path;
+
+10. zero-failure real writers;
+
+11. V24.36.7 Snell false-positive;
+
+12. 65-reflection inclusive-loop semantics;
+
+13. cap -> caller status-4 nonphysical termination;
+
+14. 512-order diagnostic history bounds;
+
+15. Qsca below/at/above 1;
+
+16. both materials;
+
+17. all required PSD bins;
+
+18. clean empty-population behavior.
+
+======================================================================
+36. REAL CUDA ABI / MEMORY SAFETY
+======================================================================
+
+Check:
+
+- Python/CUDA argument counts exactly;
+- every allocation size;
+- every maximum index;
+- history stride;
+- transition-matrix dimensions;
+- representative ledger bounds;
+- sentinel handling;
+- overflow flags;
+- zero-sized logical arrays.
+
+Do not treat sentinel storage as real data.
+
+======================================================================
+37. RNG DISCIPLINE
+======================================================================
+
+Diagnostics must not alter the frozen production replay.
+
+Document:
+
+- event-selection RNG;
+- interface RNG;
+- diagnostic RNG;
+- reverse-pair test RNG.
+
+Production-prefix replay must remain exact.
+
+Any diagnostic replay requiring predetermined random values must use a
+separate audit kernel rather than perturbing the frozen production stream.
+
+======================================================================
+38. REAL HOST-SMOKE PIPELINE
+======================================================================
+
+Before packaging, execute the actual:
+
+    config
+    ->
+    driver
+    ->
+    real writer
+    ->
+    metadata finalizer
+    ->
+    summarizer
+    ->
+    decision writer
+    ->
+    plotter
+    ->
+    campaign finalizer
+
+with deterministic tiny host fixtures.
+
+Do not fabricate final CSVs just to test downstream scripts.
+
+======================================================================
+39. BOTH MATERIALS / ALL BINS
+======================================================================
+
+The GPU verifier must process:
+
+    kaolin
+    AND
+    loess
+
+and:
+
+    every relevant Qsca>=1 PSD bin.
+
+Do not stop after one material succeeds.
+
+======================================================================
+40. ADVERSARIAL REVIEW
+======================================================================
+
+Before packaging, assume there is still a bug.
+
+Actively search for:
+
+- stale release strings;
+- stale previous-version executable modules;
+- wrong output names;
+- mismatched CSV columns;
+- zero-row crashes;
+- off-by-one reflection counts;
+- 64/65 semantics;
+- 512/513 ledger errors;
+- hidden bounce caps;
+- probability leakage;
+- fallback counted twice;
+- transition matrix double counting;
+- reverse pair using wrong normal;
+- wrong n1/n2 order;
+- naive reciprocity test;
+- missing refractive-index Jacobian;
+- wrong state-space weighting;
+- uninitialized CUDA memory;
+- array overflow;
+- swallowed exceptions;
+- one material skipped;
+- one bin skipped;
+- partial results accepted;
+- campaign executing after audit failure.
+
+Review the actual source after automated tests pass.
+
+======================================================================
+41. FINAL DELIVERABLE IS MANDATORY
+======================================================================
+
+This is important.
+
+Once the scientifically justified release has been implemented:
+
+DO NOT REPLY YET.
+
+Complete the full packaging workflow first.
+
+You must:
+
+1. Run full host verification in the build tree.
+
+2. Complete adversarial review.
+
+3. Build the final release directory.
+
+4. Generate/update manifest and critical hashes.
+
+5. Create the FINAL ZIP.
+
+6. Test ZIP integrity.
+
+7. Extract that exact ZIP into a FRESH clean directory.
+
+8. From the extracted copy execute:
+
+       package preflight
+       full host verifier
+       real host-smoke pipeline
+
+9. Verify:
+       inventory
+       critical hashes
+       release identity
+       stale-version checks
+       path budget
+       Python compilation
+       CUDA static checks
+       real writers
+       real summarizer
+       real plotter
+       real campaign finalizer
+
+10. Recompute the ZIP SHA-256 only after it is final.
+
+11. Do not modify the ZIP afterward.
+
+12. Then provide me the actual downloadable ZIP.
+
+A message saying:
+
+    “the release is nearly finished”
+
+or:
+
+    “the ZIP still needs final validation”
+
+is NOT an acceptable completion.
+
+If the work can be completed, COMPLETE IT before replying.
+
+======================================================================
+42. WHEN YOU MAY NOT PROVIDE A ZIP
+======================================================================
+
+The only acceptable reason not to provide a release ZIP is if the
+scientific investigation reaches a genuine blocking point where packaging
+the current implementation would be misleading or unsafe.
+
+If that happens:
+
+- clearly state the blocking scientific reason;
+- do not fabricate a release;
+- do not claim completion.
+
+However:
+
+if the result is simply that no physics correction is yet justified,
+that is NOT a blocker.
+
+In that situation, package the completed diagnostic as:
+
+    V24.36.10
+
+and provide the diagnostic ZIP.
+
+======================================================================
+43. GPU CLAIMS
+======================================================================
+
+If your environment cannot run real CuPy/CUDA:
+
+say exactly:
+
+    GPU validation is packaged but must run on Ben's CUDA machine.
+
+Do not claim GPU PASS based on:
+
+- fake CUDA;
+- host tests;
+- C++ syntax checking;
+- static inspection.
+
+======================================================================
+44. CAMPAIGN GATING
+======================================================================
+
+Canonical user execution remains:
+
+    preflight
+        &&
+    verifier
+        &&
+    campaign
+
+If diagnostic GPU verification fails:
+
+    STOP.
+
+If reciprocity/detailed-balance validation fails unexpectedly:
+
+    STOP.
+
+If this is V24.36.10 diagnostic-only:
+
+    campaign must ONLY finalize diagnostic outputs.
+
+It must not run the six sediment transport cases.
+
+If V24.37 physics is genuinely authorized:
+
+only then run the sediment campaign.
+
+======================================================================
+45. FINAL RESPONSE FORMAT
+======================================================================
+
+Your final response must contain:
+
+1. ACTUAL download link to the final ZIP.
+
+2. Exact release/version.
+
+3. Diagnostic-only or physics correction.
+
+4. Concise explanation of the scientific result.
+
+5. Whether a reciprocity/detailed-balance defect was demonstrated.
+
+6. Quantitative evidence.
+
+7. What fallback does to flux into/out of the macro-TIR basin.
+
+8. Whether candidate rough escape states are being rejected.
+
+9. Whether the stochastic microfacet model is reciprocal under the
+   physically correct weighting.
+
+10. Whether numerical photon destruction at 65 reflections remains in
+    production or has been correctly removed.
+
+11. Status of the 25-degree roughness parameter.
+
+12. What production physics remained frozen.
+
+13. Explicit statement that no:
+       H170 fit
+       angular remapping
+       moment fit
+       arbitrary loss
+       branch suppression
+       roughness tuning
+    was introduced.
+
+14. Host tests ACTUALLY executed.
+
+15. GPU tests ACTUALLY executed, or:
+
+       GPU validation is packaged but must run on Ben's CUDA machine.
+
+16. Final ZIP SHA-256.
+
+17. Production core/CUDA SHA-256.
+
+18. Diagnostic CUDA SHA-256 where applicable.
+
+19. Exact run commands.
+
+The expected user commands should be of the form:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/<release_folder>"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+
+    python preflight_<release>.py && \
+    python verify_<release>.py && \
+    python run_<release>_campaign.py
+
+No nested Bash.
+
+======================================================================
+46. FINAL SCIENTIFIC RULE
+======================================================================
+
+The current evidence suggests the core problem is NOT merely:
+
+    too many reflections.
+
+It appears more specifically to be:
+
+    rough interaction couples ray into macro-sphere TIR state
+        ->
+    later rough escape proposal becomes geometrically incompatible
+        ->
+    fallback substitutes ideal sphere normal
+        ->
+    geometric TIR is restored
+        ->
+    trapped state persists.
+
+But this remains a hypothesis until reciprocity and transition-flux
+tests demonstrate it rigorously.
+
+Do not fix a hypothesis.
+
+Prove the process defect first.
+
+Then fix the smallest physical process responsible.
+
+And throughout:
+
+    FIX THE PROCESS, NOT THE CURVE.
+
+    NO AVOIDABLE RELEASE ERRORS.
+
+    FINISH THE COMPLETE WORKFLOW AND PROVIDE A REAL DELIVERABLE.

@@ -1,0 +1,20 @@
+CLARITAS V24.36.12
+09 September 2026
+
+DIAGNOSTIC-ONLY FINAL MIXED-KERNEL DECISION TEST
+
+Production physics is frozen. This release fixes three V24.36.11 audit defects and adds one narrow complete rough+fallback reciprocity test under the equilibrium optical surface-flux measure n^2 mu dOmega.
+
+Fixed audit defects:
+- probability closure no longer double-counts entry reflections;
+- reflection reverse-Fresnel audit keeps the same n1/n2 orientation;
+- exact reciprocity invariants reconstruct deterministic outgoing directions rather than using quantized float32 output vectors as exact states.
+
+New decision test:
+- accepted rough and fallback outcomes are counted in the final transition kernel;
+- internal states are sampled from normalized equilibrium cosine flux p(mu)=2mu;
+- cross-interface flux includes n^2 weighting;
+- primary outside-macro-TIR <-> macro-TIR transition is evaluated for every Qsca>=1 bin of kaolin and loess;
+- fixed 1% + 5-sigma decision threshold, selected before GPU results.
+
+No H170 tuning. No process correction. No change to k=0, 25-degree RMS slope, V24.29 event rates, Qsca<1, apparatus, detector, PSD, source, or production 65-reflection behavior.
