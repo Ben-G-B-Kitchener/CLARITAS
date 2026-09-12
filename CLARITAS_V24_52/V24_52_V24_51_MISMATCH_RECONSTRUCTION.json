@@ -1,0 +1,19 @@
+{
+  "samples": 500000,
+  "rows": [
+    {
+      "category": "water_horizontal",
+      "samples": 70000,
+      "v24_51_oracle_surface_changes": 3225,
+      "free_surface_first": 3225
+    },
+    {
+      "category": "headspace_horizontal",
+      "samples": 60000,
+      "v24_51_oracle_surface_changes": 1824,
+      "free_surface_first": 1824
+    }
+  ],
+  "total_v24_51_oracle_surface_changes": 5049,
+  "unexplained_against_reported_5049": 0
+}

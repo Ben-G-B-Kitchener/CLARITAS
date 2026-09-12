@@ -1,0 +1,9 @@
+CLARITAS V24.42 real user-side production execution baseline
+
+Boundary GPU validation: PASS.
+Authorization receipt: written before production transport qualification.
+First canonical production case: loess, 0.5 g/L, 1,000,000 rays, seed 2441000.
+Observed production high-level status==4 count: 466 / 1,000,000 (0.0466%).
+run_v24_42_case.py refused to finalize the sediment result.
+The V24.42 top-level status did not identify which failure branch produced those 466 rays.
+V24.43 treats this as an architecture/observability regression and requires full production qualification before authorization.

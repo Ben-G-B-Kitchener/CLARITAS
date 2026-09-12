@@ -1,0 +1,917 @@
+Create the next CLARITAS release, V24.50.0, using the supplied V24.49 package as the sole code baseline and the supplied V24.49 GPU results as the diagnostic evidence.
+
+INPUTS
+- CLARITAS_V24_49.zip
+- results(20260911-205641).zip
+
+This is a real release-engineering task.
+
+Inspect the complete package and GPU results first. Implement the required correction, validate it as far as the available environment genuinely permits, update all version/release/package metadata, and RETURN THE COMPLETE FINAL V24.50.0 ZIP.
+
+Do not merely describe changes.
+Do not return patches or snippets.
+Do not ask me to perform edits manually.
+
+======================================================================
+PRIMARY OBJECTIVE
+======================================================================
+
+V24.50.0 is the FINAL VALIDATOR-INPUT-PARITY CLOSURE RELEASE.
+
+V24.49 reduced the outstanding connected-solid geometry issue to one remaining local-replay false negative.
+
+The supplied V24.49 GPU results show:
+
+- deterministic connected-solid geometry validation: PASS
+- CUDA boundary / microsurface validation: PASS
+- 500,000-state one-step CUDA/reference validation: PASS
+- particle accessibility:
+      0 / 100000 mismatches
+- historical 129-ray closure set:
+      PASS
+- historical V24.48 residual local replays:
+      2 / 2 locally correct
+- 4096-ray long-path residual local replays:
+      11 / 12 locally correct
+- total V24.49 closure cases:
+      13 / 14 locally correct
+- demonstrated genuine CUDA topology errors:
+      0
+
+The remaining failure is case 1650.
+
+The evidence strongly indicates that case 1650 is NOT a production CUDA error.
+
+It is a validator input-parity error: the independent local replay uses the original Python float64 scalar geometry values, while the CUDA validation kernel receives float32-quantized scalar values.
+
+The sole primary objective of V24.50 is therefore:
+
+    MAKE THE INDEPENDENT REFERENCE USE THE EXACT NUMERICAL SCALAR
+    VALUES ACTUALLY SUPPLIED TO CUDA, WHILE RETAINING HIGH-PRECISION
+    REFERENCE MATHEMATICS.
+
+If that closes case 1650 and the existing geometry gates pass:
+
+    DECLARE CONNECTED-SOLID GEOMETRY QUALIFIED
+
+and proceed immediately to the exact 1,000,000-ray production qualification.
+
+Do NOT introduce another geometry-audit stage.
+
+======================================================================
+PRODUCTION CUDA MUST REMAIN FROZEN
+======================================================================
+
+The production CUDA physics and geometry must remain byte-identical to V24.49/V24.48/V24.47 unless this corrected validator demonstrates a new, concrete, reproducible LOCAL production defect.
+
+Expected production CUDA source SHA-256 from the frozen implementation is:
+
+    e230658265a5e5826d06760bd49a7e10d9197ac9f9040bf414b3b413f9b8f9e4
+
+Verify this against the supplied baseline.
+
+If production CUDA remains unchanged, explicitly report:
+
+    production_cuda_physics_changed = false
+
+Do NOT alter CUDA simply to make the validator pass.
+
+======================================================================
+CASE 1650 — KNOWN FALSE NEGATIVE
+======================================================================
+
+V24.49 case 1650 fails only because the independent local replay reports an intersection-distance difference beyond its fixed tolerance.
+
+At approximately interaction 188:
+
+CUDA reports:
+
+    surface = 1
+    t ≈ 0.0222776802623251 m
+    TIR = true
+
+The V24.49 independent reference reports:
+
+    surface = 1
+    t ≈ 0.0222790651161088 m
+    TIR = true
+
+So both already agree on:
+
+- the physical boundary;
+- the interface classification;
+- the TIR decision.
+
+The only failure is approximately:
+
+    |Δt| ≈ 1.3848538e-6 m
+
+against the existing:
+
+    distance_tolerance = 5e-7 m
+
+DO NOT loosen this tolerance merely to obtain PASS.
+
+The geometry parameter involved is approximately:
+
+    Rin = 0.0465 m
+
+but CUDA is launched with a scalar equivalent to:
+
+    np.float32(Rin)
+
+so the actual value seen by CUDA is approximately:
+
+    0.04650000110268593 m
+
+whereas the V24.49 high-precision replay uses approximately:
+
+    0.04650000000000000 m
+
+Case 1650 is exceptionally grazing, with incidence cosine approximately:
+
+    cos(theta) ≈ 0.000786
+
+so a ~1.1 nm scalar radius difference becomes amplified into a ~1.38 µm path-distance difference.
+
+When the independent quadratic is evaluated in high precision using the actual float32-quantized Rin value supplied to CUDA, the reference result is approximately:
+
+    t ≈ 0.0222776802622524 m
+
+versus CUDA:
+
+    t ≈ 0.0222776802623251 m
+
+with an error of order:
+
+    ~7e-14 m
+
+This is essentially exact agreement.
+
+VERIFY THIS YOURSELF FROM THE SUPPLIED SOURCE AND RESULTS.
+
+Do not blindly hard-code these numbers.
+
+======================================================================
+CORE FIX — CUDA/REFERENCE INPUT PARITY
+======================================================================
+
+Audit every scalar parameter passed into the CUDA geometry/local-replay validation kernels.
+
+For every scalar parameter that production CUDA receives as float32, the independent high-precision validator must use the exact same quantized VALUE as its input.
+
+Conceptually:
+
+    Rin_ref  = float(np.float32(Rin))
+    Rout_ref = float(np.float32(Rout))
+    Zmin_ref = float(np.float32(Zmin))
+    Zlow_ref = float(np.float32(Zlow))
+    Zmax_ref = float(np.float32(Zmax))
+
+and similarly for any other relevant scalar input passed to CUDA as float32.
+
+However:
+
+DO NOT simply apply this illustrative list blindly.
+
+Inspect the actual CUDA launch signature and determine which arguments are:
+
+- float32 scalar;
+- float64 scalar;
+- integer;
+- pointer/array;
+- other type.
+
+The reference must mirror the VALUE DOMAIN of the production launch exactly.
+
+Then it may perform all independent reference mathematics in double precision.
+
+The principle is:
+
+    SAME INPUT VALUE AS CUDA
+    +
+    HIGHER-PRECISION INDEPENDENT MATHEMATICS
+
+not:
+
+    ORIGINAL UNQUANTIZED PYTHON INPUT
+    +
+    HIGHER-PRECISION MATHEMATICS
+
+These are not equivalent for grazing geometry.
+
+======================================================================
+DO NOT QUANTIZE THE REFERENCE MATHEMATICS
+======================================================================
+
+The independent reference should remain numerically high precision.
+
+Do NOT reduce the reference calculation itself to float32.
+
+Only quantize INPUT VALUES where that matches the actual CUDA ABI.
+
+For example:
+
+CORRECT:
+
+    r_ref = float(np.float32(r_cuda_input))
+    # then use r_ref in double-precision host geometry calculations
+
+INCORRECT:
+
+    perform the entire host geometry reconstruction using np.float32
+
+The purpose is to independently test CUDA geometry against the same physical/numerical parameters, not to emulate CUDA arithmetic instruction-by-instruction.
+
+======================================================================
+AUDIT ALL RELEVANT SCALAR INPUTS
+======================================================================
+
+Do not fix only Rin.
+
+Audit the actual local replay and geometry validation launch arguments.
+
+Relevant quantities may include, depending on actual implementation:
+
+- Rin
+- Rout
+- ZMIN
+- ZLOW
+- ZMAX
+- other vessel dimensions
+- free-surface/vortex parameters
+- refractive indices
+- particle geometry parameters
+- wavelength-dependent optical values
+- numerical geometry thresholds passed as kernel arguments
+- any scalar used to determine boundary/TIR classification
+
+For each scalar used in the independent replay, establish:
+
+1. Python source type/value;
+2. explicit CUDA launch conversion;
+3. actual CUDA ABI scalar type;
+4. exact numerical value received by CUDA;
+5. value used by the independent reference.
+
+Add assertions so a future mismatch is detected automatically.
+
+======================================================================
+INPUT-PARITY REGRESSION
+======================================================================
+
+Add a deterministic regression specifically reproducing the case-1650 failure mechanism.
+
+The regression should demonstrate that:
+
+1. using the original unquantized double Rin reproduces the V24.49 excess distance discrepancy;
+
+2. using the exact float32-quantized Rin supplied to CUDA makes the independent high-precision result agree with CUDA within the existing tolerance, ideally near floating-point roundoff;
+
+3. the physical surface remains the same;
+
+4. the TIR classification remains the same;
+
+5. no tolerance relaxation is required.
+
+This test should fail if someone later changes the local replay to use the wrong scalar domain again.
+
+Do not special-case ray ID 1650 in production or validation logic.
+
+The regression may use its recorded state as deterministic test evidence, but the general validator must operate generically.
+
+======================================================================
+KEEP THE EXISTING TOLERANCES
+======================================================================
+
+Do NOT increase:
+
+    distance_tolerance = 5e-7 m
+
+unless independent evidence demonstrates the tolerance itself is physically/numerically wrong.
+
+The V24.49 evidence indicates the tolerance is not the problem.
+
+The problem is mismatched input values.
+
+Preserve existing geometry tolerances unless a separate concrete defect is demonstrated.
+
+Do not perform tolerance tuning to obtain PASS.
+
+======================================================================
+RE-RUN ALL 14 CLOSURE CASES
+======================================================================
+
+After correcting scalar input parity, rerun the complete V24.49 residual closure set.
+
+Do not test only case 1650.
+
+The expected set is approximately:
+
+- 2 historical residual cases;
+- 12 long-path residual cases.
+
+But discover the set from the supplied evidence and current validator.
+
+Do not hard-code 14.
+
+For every globally divergent case, rerun independent local replay using:
+
+    actual CUDA state
+    +
+    exact CUDA scalar input values
+    +
+    independent high-precision geometry calculations
+
+Report each result as one of:
+
+    LOCAL CUDA CORRECT
+    LOCAL CUDA INCORRECT
+    NUMERICALLY AMBIGUOUS
+    VALIDATION ERROR
+
+Expected outcome from current evidence is that all remaining cases should become:
+
+    LOCAL CUDA CORRECT
+
+But do not manufacture this result.
+
+======================================================================
+STOPPING RULE — CRITICAL
+======================================================================
+
+If the corrected validator shows that all residual local replay cases are physically correct:
+
+    DECLARE LONG-PATH GEOMETRY VALIDATION PASSED
+
+and:
+
+    DECLARE CONNECTED-SOLID GPU GEOMETRY GATE PASSED
+
+Then STOP AUDITING GEOMETRY.
+
+Proceed immediately to the exact 1,000,000-ray qualification.
+
+Do NOT invent:
+
+- another precision audit;
+- another long-path reference;
+- another trajectory-tracing framework;
+- another global orbit equality requirement;
+- another speculative edge-case campaign;
+- another geometry release blocker.
+
+The purpose of V24.50 is closure.
+
+If a genuine new local CUDA error is demonstrated, then stop qualification and report it clearly.
+
+Only demonstrated local physical incorrectness justifies another production geometry change.
+
+======================================================================
+GLOBAL FLOAT32/FLOAT64 ORBIT COMPARISON
+======================================================================
+
+Retain the global orbit comparison as DIAGNOSTIC INFORMATION ONLY.
+
+Continue to report:
+
+- number of globally identical paths;
+- number of globally divergent paths;
+- interaction-count differences;
+- terminal-surface differences;
+- cap-to-cap matches;
+- CUDA-cap/reference-opportunity cases;
+- reference-cap/CUDA-opportunity cases.
+
+Do NOT make global orbit equality a release gate.
+
+Repeated specular reflections can amplify minute numerical differences, and float32 CUDA and independently propagated float64 trajectories are not required to remain globally identical.
+
+The physical gate is local correctness from the actual CUDA state.
+
+======================================================================
+STRONG EXACT GATES MUST REMAIN
+======================================================================
+
+Do NOT weaken the existing strong gates.
+
+Retain as release-blocking:
+
+- package/preflight validation;
+- CUDA/Python ABI validation;
+- boundary/microsurface validation;
+- deterministic connected-solid topology tests;
+- explicit CUDA array memory-layout regression;
+- 500,000-state one-step CUDA/reference comparison;
+- corrected 100,000-state particle accessibility comparison;
+- local replay correctness for globally divergent historical paths;
+- local replay correctness for globally divergent 4096-path stress cases;
+- NaN/Inf checks;
+- invalid region/surface checks;
+- watchdog/emergency-cap semantics.
+
+The 500,000-state one-step test remains especially important.
+
+Require zero unexplained semantic mismatches.
+
+======================================================================
+CONNECTED-SOLID TOPOLOGY MUST REMAIN UNCHANGED
+======================================================================
+
+Preserve:
+
+- acrylic as the connected union of finite sidewall and solid bottom disc;
+- r = Rin as acrylic/water boundary only over the water-side axial interval;
+- r = Rin below ZMIN as internal acrylic;
+- z = ZMIN annular acrylic/acrylic continuity;
+- zero Fresnel event at internal acrylic/acrylic continuation;
+- zero Fresnel RNG draw at internal acrylic/acrylic continuation;
+- removal of the obsolete 64-reflection rejection criterion;
+- distinction between physical termination and progress watchdog;
+- distinction between physical termination and emergency execution cap.
+
+Do not regress any of this.
+
+======================================================================
+RNG INTEGRITY
+======================================================================
+
+Preserve all existing RNG semantics.
+
+Internal acrylic/acrylic continuation must consume zero Fresnel RNG draws.
+
+True optical boundaries must preserve defined draw ordering.
+
+The validator must not alter the production RNG stream.
+
+Input-parity corrections must affect only reference validation unless a genuine production issue is demonstrated.
+
+======================================================================
+TERMINAL-STATE SEMANTICS
+======================================================================
+
+Preserve the corrected V24.49 separation between:
+
+- correctness of the terminal-state comparator;
+- equality of the global independently propagated trajectories.
+
+A correct comparator may PASS even if global orbit terminal results differ.
+
+Do not regress to the V24.48 conflation.
+
+======================================================================
+PROCESS-DECISION REPORTING
+======================================================================
+
+Retain the V24.49 stale-summary fix.
+
+After every major validation stage and immediately before every fail-closed exit:
+
+- regenerate/update the process decision;
+- regenerate/update qualification summary;
+- ensure geometry decision, process decision and summary agree.
+
+Maintain the deliberate failure regression proving that:
+
+- geometry ran;
+- geometry failed;
+- downstream million-ray qualification did not run.
+
+No stale status files.
+
+======================================================================
+EXACT 1,000,000-RAY QUALIFICATION
+======================================================================
+
+If and only if the corrected connected-solid GPU geometry gate passes, automatically proceed to:
+
+    EXACTLY 1,000,000 production rays
+
+Do not reduce the ray count.
+
+Do not substitute a smoke test.
+
+Do not stop and ask me whether to continue.
+
+Run it automatically as part of the fail-closed campaign.
+
+Record at least:
+
+- exact ray count;
+- configuration;
+- seeds;
+- detector statistics;
+- termination categories;
+- watchdog count;
+- emergency-cap count;
+- NaN count;
+- Inf count;
+- invalid-region count;
+- invalid-surface count;
+- weight/probability/energy sanity metrics already defined by CLARITAS;
+- any existing transport-integrity metrics.
+
+If this stage fails, stop fail-closed and preserve diagnostics.
+
+======================================================================
+FIVE-CASE CROSS-CASE INTEGRITY MATRIX
+======================================================================
+
+If and only if the exact million-ray qualification passes, run the existing complete five-case cross-case integrity matrix.
+
+Do not reduce the five cases.
+
+Do not replace them with smoke tests.
+
+Do not manufacture PASS.
+
+Retain all machine-readable evidence.
+
+======================================================================
+FINAL PRODUCTION AUTHORIZATION
+======================================================================
+
+Only after:
+
+- all prerequisite host checks pass;
+- all GPU boundary checks pass;
+- deterministic geometry passes;
+- one-step 500k comparison passes;
+- particle accessibility passes;
+- all residual local replay checks pass;
+- connected-solid geometry gate passes;
+- exact 1,000,000-ray qualification passes;
+- five-case integrity matrix passes;
+
+may the release set:
+
+    production_transport_validated = true
+
+and only then may:
+
+    sediment_campaign_authorized = true
+
+Otherwise:
+
+    production_transport_validated = false
+    sediment_campaign_authorized = false
+
+Remain strictly fail-closed.
+
+======================================================================
+H170 CAMPAIGN
+======================================================================
+
+Preserve the existing H170 sediment-campaign gating.
+
+Do not run or authorize H170 until all production qualification prerequisites pass.
+
+If the complete production qualification succeeds and the existing workflow is designed to proceed to H170 automatically, preserve that workflow.
+
+Do not weaken the authorization conditions.
+
+======================================================================
+CUDA/PYTHON ABI
+======================================================================
+
+Perform a fresh complete ABI audit.
+
+V24.49 reported approximately:
+
+    trace_kernel = 155 arguments
+    score_detectors_kernel = 47 arguments
+
+Do not assume these counts.
+
+Verify against V24.50 actual source:
+
+- CUDA declaration;
+- Python launch;
+- argument count;
+- argument order;
+- pointer/scalar type;
+- dtype;
+- scalar width;
+- optional buffers;
+- structure packing if relevant.
+
+Pay special attention to the ABI scalar widths because this release specifically concerns exact CUDA input-value parity.
+
+Produce a machine-readable scalar ABI/input-parity report if practical.
+
+Any ABI mismatch is a release blocker.
+
+======================================================================
+CUDA SCALAR INPUT PARITY REPORT
+======================================================================
+
+Add a compact machine-readable report documenting the important scalar geometry/optical parameters used in local replay.
+
+For each relevant scalar, record approximately:
+
+    parameter_name
+    python_original_value
+    cuda_cast_type
+    cuda_effective_value
+    reference_effective_value
+    parity_pass
+
+For example:
+
+    Rin
+    original Python double
+    float32
+    exact float32-expanded-to-double value
+    same exact value
+    true
+
+Do not generate excessive reporting for irrelevant parameters.
+
+This is intended to prevent recurrence of the case-1650 issue.
+
+======================================================================
+NO HIDDEN FALLBACKS
+======================================================================
+
+Retain/repeat the existing audit for:
+
+- CPU production transport fallbacks;
+- legacy topology code;
+- old 64-reflection rejection;
+- stale geometry kernels;
+- debug transport accidentally selectable;
+- hard-coded PASS results;
+- exception handlers that convert FAIL into PASS;
+- environment-variable qualification bypasses;
+- legacy validators capable of becoming release gates accidentally.
+
+Do not undertake an open-ended codebase rewrite.
+
+This should remain a targeted regression check.
+
+======================================================================
+RELEASE VERSIONING
+======================================================================
+
+Make this release consistently:
+
+    V24.50.0
+
+Update all applicable:
+
+- source/package version constants;
+- top-level directory;
+- validation scripts;
+- runner scripts;
+- qualification metadata;
+- process decision;
+- geometry decision;
+- qualification receipt;
+- release notes;
+- README references;
+- manifests;
+- SHA256SUMS.
+
+Search repository-wide for stale current-release V24.49 references.
+
+Historical references to V24.49 may remain where they explicitly describe previous-release evidence.
+
+======================================================================
+DOCUMENTATION
+======================================================================
+
+Add a concise V24.50 engineering note explaining:
+
+- V24.49 closed 13/14 residual local replay cases;
+- no genuine production CUDA geometry defect was demonstrated;
+- case 1650 selected the same surface and same TIR result in CUDA and reference;
+- its only failure was an intersection-distance discrepancy;
+- CUDA received float32-quantized Rin while the independent replay used the original float64 Rin;
+- grazing incidence amplified the ~nanometre parameter difference into a ~micrometre t difference;
+- using the exact CUDA scalar input value removes the discrepancy without tolerance relaxation;
+- production CUDA remained frozen unless contrary evidence was discovered;
+- global float32-vs-float64 orbit divergence remains diagnostic rather than release-blocking;
+- whether all local replay cases passed;
+- whether geometry qualification closed;
+- whether the million-ray test ran/passed;
+- whether the five-case matrix ran/passed;
+- final authorization status.
+
+Do not describe this as a production physics correction unless production physics actually changes.
+
+======================================================================
+MACHINE-READABLE OUTPUTS
+======================================================================
+
+The final top-level qualification summary should contain at least:
+
+    package_validation
+    host_validation
+    cuda_available
+    cuda_abi_validation
+    cuda_scalar_input_parity
+    boundary_gpu_validation
+    deterministic_geometry_validation
+    memory_layout_validation
+    one_step_500k_validation
+    particle_accessibility_validation
+    historical_global_orbit_diagnostic
+    historical_local_replay_validation
+    long_path_global_orbit_diagnostic
+    long_path_local_replay_validation
+    case_1650_input_parity_regression
+    geometry_gpu_validation
+    million_ray_qualification
+    cross_case_integrity_matrix
+    production_cuda_physics_changed
+    production_transport_validated
+    sediment_campaign_authorized
+
+Use PASS / FAIL / NOT RUN explicitly where appropriate.
+
+Do not use PASS for informational diagnostics that are not gates unless semantics are clearly documented.
+
+======================================================================
+TESTING IN YOUR ENVIRONMENT
+======================================================================
+
+Run everything the environment genuinely supports.
+
+At minimum run:
+
+- Python syntax/import checks;
+- package preflight;
+- complete host verifier;
+- static consistency checks;
+- source/ABI audit;
+- scalar-input-parity audit;
+- case-1650 host regression;
+- deterministic host reference tests;
+- stale-decision regression;
+- manifest verification;
+- SHA256SUMS verification;
+- packaging integrity.
+
+If compatible CUDA is available, run the full GPU qualification sequence.
+
+If CUDA is unavailable:
+
+- state this explicitly;
+- mark GPU stages NOT RUN;
+- do not fabricate GPU success;
+- leave production_transport_validated = false;
+- leave sediment_campaign_authorized = false.
+
+======================================================================
+QUALIFICATION SEQUENCE
+======================================================================
+
+The campaign runner should enforce approximately:
+
+1. package/preflight
+2. host/static/version checks
+3. CUDA/Python ABI check
+4. CUDA scalar-input-parity check
+5. boundary/microsurface GPU suite
+6. deterministic connected-solid tests
+7. memory-layout regression
+8. 500,000-state one-step comparison
+9. 100,000-state particle accessibility comparison
+10. historical 129-ray diagnostic/local replay
+11. 4096-ray long-path diagnostic/local replay
+12. case-1650 input-parity closure confirmation
+13. connected-solid geometry decision
+14. exact 1,000,000-ray qualification
+15. five-case cross-case integrity matrix
+16. qualification receipt
+17. production authorization
+18. only then H170 sediment authorization/execution
+
+Do not make me manually infer the next step.
+
+Do not require manual continuation after a PASS.
+
+======================================================================
+PACKAGING REQUIREMENTS
+======================================================================
+
+Return ONE final archive:
+
+    CLARITAS_V24_50.zip
+
+containing exactly one top-level folder:
+
+    CLARITAS_V24_50/
+
+Do not return merely changed files.
+
+Do not return a diff instead of the complete release.
+
+Do not omit required V24.49 content unless intentionally removed and documented.
+
+Do not include:
+
+- __pycache__
+- .pyc
+- CuPy cache
+- Jitify cache
+- temporary build files
+- editor files
+- nested previous ZIP files
+- temporary extracted releases
+- unnecessary huge trace outputs
+
+Include all validation/reproduction scripts required for qualification.
+
+Generate:
+
+    SHA256SUMS.txt
+
+covering all release-critical files.
+
+Verify every hash.
+
+Then:
+
+1. construct the FINAL ZIP;
+2. test compressed-data integrity;
+3. clean-extract that exact ZIP into a fresh directory;
+4. run package preflight FROM THE CLEAN EXTRACTED COPY;
+5. run complete host verification FROM THE SAME EXTRACTED COPY;
+6. verify SHA256SUMS from the extracted copy;
+7. run available qualification stages from that extracted copy where practical.
+
+Do not validate one directory and package another.
+
+Report the final ZIP SHA-256.
+
+======================================================================
+REPRODUCIBLE USER COMMANDS
+======================================================================
+
+Provide one canonical command sequence.
+
+Assume:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_50"
+    conda activate claritas
+
+Clear stale caches/output:
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+Then provide the ACTUAL scripts created, ideally something equivalent to:
+
+    python preflight_v24_50_package.py && \
+    python verify_v24_50_input_parity_closure.py && \
+    python run_v24_50_campaign.py
+
+Use the real filenames.
+
+The campaign runner must enforce ordering and fail-closed behavior itself.
+
+======================================================================
+FINAL RESPONSE
+======================================================================
+
+When complete, report:
+
+1. concise engineering summary;
+2. whether production CUDA changed;
+3. frozen CUDA source SHA-256 comparison;
+4. scalar-input-parity correction implemented;
+5. case-1650 result before/after corrected input parity;
+6. result of every residual local replay case;
+7. historical 129-ray result;
+8. 4096-ray long-path result;
+9. 500,000-state one-step result;
+10. particle-accessibility result;
+11. whether connected-solid geometry qualification PASSED;
+12. whether exact 1,000,000-ray qualification ran and its result;
+13. whether the five-case integrity matrix ran and its result;
+14. status of:
+        production_transport_validated
+        sediment_campaign_authorized
+15. final CUDA/Python ABI audit;
+16. scalar-input-parity audit;
+17. anything NOT RUN and why;
+18. final archive structure;
+19. final archive SHA-256;
+20. exact commands I should run;
+21. DOWNLOADABLE LINK TO CLARITAS_V24_50.zip.
+
+MOST IMPORTANTLY:
+
+DO THE WORK AND RETURN THE COMPLETE ZIP.
+
+Do not stop after analysis.
+Do not ask me to edit anything manually.
+Do not return only patches.
+Do not claim tests you did not run.
+Do not weaken tolerances merely to pass.
+Do not modify production CUDA unless corrected local replay proves an actual production defect.
+Do not introduce another geometry audit stage if scalar input parity closes the final case.
+If all residual cases pass local replay, CLOSE THE GEOMETRY AUDIT AND MOVE ON TO THE MILLION-RAY QUALIFICATION.

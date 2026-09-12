@@ -1,0 +1,44 @@
+{
+  "gpu_acquisition_complete": true,
+  "diagnostic_integrity_passed": true,
+  "production_probability_conservation_passed": false,
+  "production_numerical_cap_loss_demonstrated": true,
+  "numerical_photon_destruction_removed_from_production": false,
+  "diagnostic_extended_continuation_is_censoring_not_physical_loss": true,
+  "diagnostic_reflection_limit": 512,
+  "production_reflection_limit": 65,
+  "roughness_provenance_status": "no_independent_physical_provenance_found_in_available_lineage",
+  "microfacet_model_classification": "uncorrelated stochastic microfacet boundary on ideal sphere; no persistent spatial rough-surface state in frozen implementation",
+  "process_correction_authorized": false,
+  "sediment_transport_run": false,
+  "decision": "V24.36.9 diagnostic-only; characterize trapped-ray asymptotics and rough/fallback mechanism before deriving V24.37 correction",
+  "material_observations": {
+    "loess": {
+      "event_weighted_production_cap_fraction": 0.003482061059959809,
+      "event_weighted_internal_reflection_history_fraction": 0.08537037928289377,
+      "production_cap_share_of_internal_reflection_histories": 0.04078769579342296,
+      "raw_production_cap_hits": 6566,
+      "raw_cap_hits_escaping_during_extended_continuation": 1870,
+      "raw_cap_hits_still_censored_at_diagnostic_limit": 4696,
+      "extended_escape_fraction_of_cap_hits": 0.2848004873591228,
+      "censored_fraction_of_cap_hits_at_diagnostic_limit": 0.7151995126408772,
+      "tir_fraction_of_reflections_order_ge_60": 0.9999847824398143,
+      "fallback_fraction_of_boundaries_order_ge_60": 0.9991333748584954
+    },
+    "kaolin": {
+      "event_weighted_production_cap_fraction": 0.0034725181239625333,
+      "event_weighted_internal_reflection_history_fraction": 0.08199000141202259,
+      "production_cap_share_of_internal_reflection_histories": 0.042352946263681135,
+      "raw_production_cap_hits": 4854,
+      "raw_cap_hits_escaping_during_extended_continuation": 1377,
+      "raw_cap_hits_still_censored_at_diagnostic_limit": 3477,
+      "extended_escape_fraction_of_cap_hits": 0.2836835599505562,
+      "censored_fraction_of_cap_hits_at_diagnostic_limit": 0.7163164400494437,
+      "tir_fraction_of_reflections_order_ge_60": 0.999993634092039,
+      "fallback_fraction_of_boundaries_order_ge_60": 0.9991453114543892
+    }
+  },
+  "release": "V24.36.9",
+  "diagnostic_only": true,
+  "production_ray_campaign_authorized": false
+}

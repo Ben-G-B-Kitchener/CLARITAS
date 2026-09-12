@@ -1,0 +1,875 @@
+You are to produce the next complete CLARITAS release: V24.38.0.
+
+THIS IS AN IMPLEMENTATION TASK, NOT AN ADVISORY OR CODE-REVIEW TASK.
+
+You must inspect the supplied packages/results, modify the code, run all host-side validation available to you, construct the complete release package, and RETURN A DOWNLOADABLE ZIP FILE.
+
+A ZIP FILE IS COMPULSORY.
+
+Do not finish with code snippets, a patch, instructions for me to make changes, or a statement that files are available elsewhere. The final response MUST contain a downloadable:
+
+    CLARITAS_V24_38.zip
+
+containing the complete runnable V24.38.0 release.
+
+If CUDA hardware is unavailable in your environment, that does NOT excuse the ZIP requirement. In that case produce a correctly gated V24.38.0 GPU-validation candidate, run every possible host test, clearly state that GPU authorization remains outstanding, and still supply the ZIP.
+
+Do not ask me to make implementation decisions unless absolutely impossible to proceed. Inspect the existing implementation and make the scientifically defensible implementation yourself.
+
+
+============================================================
+1. INPUTS / AUTHORITATIVE STARTING POINT
+============================================================
+
+Use these supplied files:
+
+1. CLARITAS_V24_37(1).zip
+   - This is the immediate production starting point.
+   - Preserve its architecture, campaign workflow, validation philosophy and frozen non-boundary physics unless explicitly changed below.
+
+2. results(8).zip
+   - These are the REAL GPU results from V24.37.
+   - Treat these as authoritative evidence of the V24.37 corrected-boundary failure.
+
+3. CLARITAS_V24_36_12(1).zip
+   - Use only where needed as the frozen legacy/defect-regression reference.
+
+4. Any supplied V24.37 release notes/audit material.
+   - Use them to understand what was deliberately frozen and what V24.37 attempted to replace.
+
+V24.38 is NOT to be rebuilt from an earlier release.
+
+Start from V24.37.
+
+
+============================================================
+2. WHY V24.38 IS REQUIRED
+============================================================
+
+V24.37 successfully ran its CUDA validation but correctly refused to authorize sediment transport.
+
+The failure was NOT:
+
+- CUDA execution;
+- CuPy;
+- deterministic Fresnel/Snell optics;
+- photon probability/count conservation;
+- the frozen V24.29 Mie/event-rate model;
+- k=0;
+- the 25-degree roughness value;
+- numerical watchdog failure;
+- legacy identity.
+
+The remaining defect is the stochastic rough-dielectric boundary transition law.
+
+V24.37 replaced the old:
+
+    raw Beckmann NDF
+        +
+    facing rejection
+        +
+    geometric-normal fallback
+
+with an incident-conditioned Beckmann VNDF followed by rejection/resampling when the sampled reflection/refraction did not have valid macro-surface support.
+
+Conceptually:
+
+    incident direction
+          |
+          v
+    sample incident-conditioned Beckmann VNDF normal
+          |
+          v
+    Fresnel reflection/refraction
+          |
+          v
+    outgoing state has required macro-surface support?
+          |
+          +-- yes --> accept
+          |
+          +-- no  --> discard entire proposal and resample
+
+The real GPU results demonstrate that this is not reciprocal.
+
+V24.37 GPU baseline:
+
+MAIN CORRECTED-KERNEL RECIPROCITY
+
+Kaolin:
+    aggregate relative residual = 0.1946099924
+                                = 19.461%
+    aggregate z = 43.97 sigma
+    28/28 Qsca>=1 bins fail
+
+Loess:
+    aggregate relative residual = 0.1888669774
+                                = 18.887%
+    aggregate z = 46.11 sigma
+    38/38 Qsca>=1 bins fail
+
+Therefore:
+    66/66 Qsca>=1 bins fail.
+
+CROSS-INTERFACE RECIPROCITY
+
+Kaolin:
+    outside ordinary       3.037%
+    outside near-critical  7.648%
+    TIR near-critical     18.457%
+    TIR grazing           48.453%
+
+Loess:
+    outside ordinary       3.061%
+    outside near-critical  7.228%
+    TIR near-critical     17.849%
+    TIR grazing           48.228%
+
+All aggregate material/state combinations fail decisively.
+
+At the same time V24.37 shows:
+
+- deterministic fixed-microfacet reflection/refraction reversibility passes;
+- Fresnel/Snell reciprocity passes;
+- probability conservation passes;
+- legacy identity passes;
+- zero watchdog hits;
+- zero other numerical failures.
+
+This strongly localises the defect to the stochastic rough-surface process.
+
+
+============================================================
+3. PHYSICAL INTERPRETATION TO USE FOR V24.38
+============================================================
+
+Do NOT try to repair V24.37 by:
+
+- relaxing the 1% / 5-sigma validation criterion;
+- increasing Monte Carlo samples and calling the result fixed;
+- tuning the RMS slope;
+- tuning refractive indices;
+- changing Qsca;
+- changing Mie event probabilities;
+- suppressing TIR;
+- altering Fresnel branch probabilities;
+- multiplying directions or probabilities by fitted factors;
+- adding empirical survival probabilities;
+- introducing artificial escape;
+- returning to a geometric-normal fallback;
+- hiding unsupported proposals;
+- fitting anything against H170;
+- adding material-specific scatter multipliers;
+- adding PSD-specific boost factors;
+- fitting sediment results.
+
+V24.38 must remain a PROCESS-BASED physical model.
+
+The central conceptual correction is:
+
+    an outgoing microfacet event that does not immediately escape
+    the macrosurface must NOT simply cause the original proposal to
+    be deleted and redrawn.
+
+Instead, unresolved rough-surface transport must be represented by the
+physical microsurface transport process itself.
+
+Implement an intrinsically reciprocal, energy-conserving rough-dielectric
+Smith microsurface / multiple-scattering model.
+
+Use an established published formulation rather than inventing an empirical
+normalisation correction.
+
+A Heitz-style Smith microsurface random-walk / multiple-scattering treatment,
+extended correctly to dielectric reflection AND refraction, is the preferred
+approach.
+
+You must research/verify the relevant published equations if required.
+
+The physical idea should be:
+
+    ray enters local rough microsurface
+             |
+             v
+    sample physically correct visible microsurface interaction
+             |
+             v
+       Fresnel event
+        /       \
+ reflection   refraction
+        \       /
+             v
+    does ray escape the microsurface layer?
+        |
+        +-- yes --> return escaped state
+        |
+        +-- no --> encounter the microsurface again
+                    |
+                    v
+               continue random walk
+                    |
+                    v
+                eventual escape
+
+This must represent actual microfacet multiple scattering rather than
+repeatedly drawing independent first-hit proposals until a convenient
+macroscopic direction appears.
+
+Reflection and transmission/refraction must be included in the SAME physical
+transport framework.
+
+The model must obey the appropriate refractive-index / radiance reciprocity
+relationship across the dielectric interface.
+
+
+============================================================
+4. IMPORTANT IMPLEMENTATION REQUIREMENT
+============================================================
+
+Do not merely rename the V24.37 VNDF code.
+
+Do not implement:
+
+    VNDF + macro-support rejection/resampling
+
+under another name.
+
+V24.38 needs a genuinely different boundary transport process.
+
+The implementation should have clearly separated concepts such as, where
+appropriate:
+
+- microsurface first encounter;
+- Smith visibility/free-flight/escape treatment;
+- microfacet normal sampling;
+- Fresnel reflection/refraction;
+- transition between dielectric sides;
+- subsequent microsurface encounters;
+- escape from the microsurface;
+- numerical watchdog handling.
+
+The precise function decomposition is yours to determine from the published
+model.
+
+Use numerically stable CUDA-compatible implementations.
+
+
+============================================================
+5. AUDIT ALL PRODUCTION ROUGH-PARTICLE PATHS
+============================================================
+
+Do not modify only one obvious sphere function and leave another production
+path using the old physics.
+
+Audit every production path capable of invoking particle rough-interface
+physics, including at minimum the roles presently served by functions such as:
+
+    sphere_fresnel_interaction_3d
+
+    spheroid_fresnel_scatter_direction_only_3d
+
+    beckmann_vndf_normal
+
+    beckmann_microfacet_normal
+
+and any wave-morphology / incoherent-scattering code that reuses particle
+rough-interface physics.
+
+Check the call graph yourself.
+
+Corrected V24.38 production mode must contain NO operational leakage of:
+
+- V24.36 raw-NDF/facing-rejection behaviour;
+- geometric-normal fallback used to absorb unsupported probability;
+- V24.37 support-rejection/resampling physics;
+- hidden Fresnel branch suppression;
+- artificial escape.
+
+Old algorithms may exist ONLY in clearly isolated validation-only regression
+code if required to demonstrate that the verifier still detects them.
+
+They must not be callable by the V24.38 production transport path.
+
+
+============================================================
+6. PRESERVE THE FROZEN PHYSICS
+============================================================
+
+Except for the explicitly replaced rough-particle boundary process, preserve
+the validated/frozen V24.37/V24.29 production state.
+
+In particular retain:
+
+- V24.29 exact-Mie event-rate physics;
+- Qsca<1 treatment;
+- Qsca=1 boundary behaviour;
+- source geometry;
+- apparatus geometry;
+- detector geometry;
+- detector angular response;
+- detector scoring;
+- PSDs;
+- material optical constants;
+- water refractive index;
+- particle refractive indices;
+- particle k = 0;
+- RMS roughness slope = 25 degrees;
+- wave model;
+- sediment transport;
+- vortex model;
+- H170 geometry/cases;
+- event codes;
+- source/detector symmetry treatment;
+- SFH213 response;
+- all unrelated CUDA transport physics.
+
+The 25-degree RMS slope is STILL an inherited physically motivated but
+independently unvalidated morphology parameter.
+
+DO NOT tune it in V24.38.
+
+No H170 output may be used to design, tune, select, normalise or accept the
+new boundary model.
+
+
+============================================================
+7. LEGACY IDENTITY
+============================================================
+
+Preserve the frozen legacy implementation separately.
+
+Create the appropriate:
+
+    v24_38_legacy_core.py
+
+such that the frozen legacy CUDA/core physics remains byte-identical to the
+authoritative frozen baseline where V24.37 required that identity.
+
+Do not accidentally "clean up" legacy code.
+
+Legacy code is evidence and a regression reference, not something to improve.
+
+
+============================================================
+8. RETAIN DEFECT REGRESSIONS
+============================================================
+
+The validator must continue to prove that it can detect known-bad physics.
+
+Retain the authoritative V24.36.12 regression demonstrating the very large
+legacy macro-TIR imbalance (>70% where previously established).
+
+Also add or retain a validation-only V24.37 candidate regression demonstrating
+that the superseded:
+
+    VNDF + macro-support rejection/resampling
+
+algorithm still fails reciprocity substantially.
+
+The exact Monte Carlo percentage does not have to equal 19.46% every run, but
+the regression must demonstrate that the known-bad V24.37 candidate is
+rejected by the authoritative test.
+
+Do NOT make the old candidate part of production merely to perform this
+regression. Isolate it in validation code.
+
+
+============================================================
+9. V24.38 AUTHORITATIVE GPU PHYSICS GATES
+============================================================
+
+Do not weaken the V24.37 acceptance tests.
+
+V24.38 must pass the SAME independent criteria that rejected V24.37.
+
+At minimum require:
+
+A. DETERMINISTIC LOCAL OPTICS
+
+- reflection reversibility;
+- refraction reversibility;
+- Fresnel reciprocity;
+- correct dielectric n^2 transport relation;
+- stable-vector Snell regression;
+- TIR handling;
+- normal and grazing incidence edge cases.
+
+B. CORRECTED COMPLETE-KERNEL RECIPROCITY
+
+Use the complete real production V24.38 rough-boundary kernel.
+
+Test ALL:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+Total:
+    66 required bins.
+
+Keep the existing fixed failure criterion:
+
+    relative discrepancy > 1%
+    AND
+    >= 5 sigma
+
+Do not relax, reinterpret or replace that threshold.
+
+Generate per-bin and aggregate results.
+
+C. CROSS-INTERFACE RECIPROCITY
+
+Test both materials for the same physically significant states used by V24.37,
+including:
+
+- outside ordinary;
+- outside near-critical;
+- TIR near-critical;
+- TIR grazing.
+
+These tests are especially important because V24.37's residual grew from
+about 3% to about 48% toward the TIR/grazing regime.
+
+D. PROBABILITY / ENERGY CONSERVATION
+
+For k=0:
+
+- no physical absorption;
+- no missing photons;
+- no status silently interpreted as loss;
+- reflection + transmission transport must conserve probability/energy in the
+  appropriate physical measure.
+
+E. NUMERICAL/WATCHDOG INTEGRITY
+
+Require:
+
+    watchdog_hits = 0
+    other_numerical_failures = 0
+
+before authorization.
+
+F. LEGACY IDENTITY
+
+Must still pass.
+
+G. KNOWN-DEFECT REGRESSIONS
+
+The validator must still reject:
+
+- V24.36.12 legacy rough-boundary defect;
+- V24.37 VNDF/support-rejection candidate defect.
+
+
+============================================================
+10. ADD V24.38 MICROSURFACE-SPECIFIC TESTS
+============================================================
+
+Because V24.38 introduces a multiple-interaction rough-surface transport
+process, add appropriate independent tests rather than relying solely on the
+old suite.
+
+At minimum investigate and implement useful tests for:
+
+1. alpha -> 0 / smooth-surface limit
+   The rough transport must converge to deterministic geometric-normal
+   Fresnel/Snell behaviour.
+
+2. equal-index limit where applicable
+   Behaviour should reduce appropriately when n1 == n2.
+
+3. directional reciprocity across representative individual state pairs.
+
+4. reflection and transmission path reversal.
+
+5. statistical escape:
+   every nonabsorbed path must ultimately escape one side or trigger a HARD
+   numerical watchdog failure.
+
+6. interaction-count distribution:
+   record number of microsurface encounters per interaction.
+
+7. high-angle/TIR/grazing stress cases.
+
+8. NaN/Inf checks.
+
+9. CUDA deterministic/reproducible test seeds where useful.
+
+10. consistency between the isolated validation implementation and the real
+    production function.
+
+Avoid a fake "validation kernel" that tests nicer equations than the actual
+production transport.
+
+There should be at least one validation kernel/test that invokes the actual
+production-path physics.
+
+
+============================================================
+11. WATCHDOG SEMANTICS
+============================================================
+
+Preserve the principle introduced in V24.37:
+
+The old 65-reflection behaviour must NOT return.
+
+No photon may silently disappear because it encountered too many rough
+surface interactions.
+
+A high numerical engineering watchdog may remain, preferably preserving the
+existing 4096 philosophy unless the new algorithm gives a strong technical
+reason for another value.
+
+But:
+
+- watchdog termination is NOT absorption;
+- watchdog termination is NOT escape;
+- watchdog termination is NOT a valid Monte Carlo result;
+- any watchdog hit invalidates the physics validation;
+- any watchdog/numerical failure invalidates a production sediment case.
+
+There must be zero such events for release authorization.
+
+
+============================================================
+12. FIX THE V24.37 DECISION-REPORTING BUG
+============================================================
+
+V24.37 contains a reporting error in the logic for:
+
+    old_65_reflection_photon_destruction_removed_in_corrected_mode
+
+The existing implementation effectively derives it using:
+
+    release_pass and ...
+
+which means it becomes False whenever an unrelated physics gate fails.
+
+That conflates:
+
+    "the old 65-reflection sink has been removed"
+
+with:
+
+    "the complete new physics model has been authorized"
+
+Fix this in V24.38.
+
+Report these independently, for example:
+
+    old_65_reflection_photon_destruction_removed_in_corrected_mode
+
+    watchdog_zero_hits
+
+    numerical_failures_zero
+
+    corrected_kernel_reciprocity_pass
+
+    cross_interface_reciprocity_pass
+
+    validated_physics_correction
+
+    sediment_campaign_authorized
+
+A reciprocity failure must not falsely report that the 65-reflection sink is
+present.
+
+
+============================================================
+13. CAMPAIGN GATING
+============================================================
+
+Maintain strict separation between:
+
+    boundary physics validation
+
+and:
+
+    sediment/H170 campaign
+
+The canonical V24.38 workflow must be:
+
+    preflight
+        |
+        v
+    host + GPU process validation
+        |
+        v
+    process decision
+        |
+        +-- FAIL --> stop
+        |           no H170
+        |
+        +-- PASS --> write authorization receipt
+                    |
+                    v
+                  H170 campaign
+
+run_v24_38_campaign.py MUST NOT run the six sediment cases unless a valid
+V24.38 GPU authorization receipt has been produced by the authoritative
+V24.38 process validator.
+
+It must reject:
+
+- missing receipt;
+- stale receipt;
+- receipt from another release;
+- failed receipt;
+- host-only receipt;
+- incomplete GPU acquisition.
+
+Do not allow command-line overrides that trivially bypass physics
+authorization.
+
+
+============================================================
+14. VERSIONING
+============================================================
+
+Up-version the complete executable release consistently to:
+
+    V24.38.0
+
+Expected top-level package directory:
+
+    CLARITAS_V24_38
+
+Expected important executable filenames should be versioned accordingly,
+including equivalents of:
+
+    claritas_tardiis_core_v24_38.py
+    claritas_v24_38_config.json
+    v24_38_model.py
+    v24_38_release.py
+    v24_38_validation.py
+    v24_38_legacy_core.py
+    preflight_v24_38_package.py
+    verify_v24_38_corrected_boundary.py
+    summarize_v24_38_corrected_boundary.py
+    plot_v24_38_corrected_boundary.py
+    run_v24_38_case.py
+    run_v24_38_campaign.py
+
+Update documentation, manifest files, hashes and release strings.
+
+Audit for stale V24.37 executable references.
+
+Historical text saying that V24.37 failed is of course allowed in documentation
+and defect-regression code.
+
+Do not leave stale V24.37 filenames/imports controlling current execution.
+
+
+============================================================
+15. DOCUMENTATION
+============================================================
+
+Update/create useful technical documentation including:
+
+    README.md
+    RELEASE_NOTES.txt
+    PACKAGE_MANIFEST.json
+    SHA256SUMS.txt
+
+and appropriate physics/audit documentation.
+
+The V24.38 physics documentation must explain:
+
+- exactly why V24.37 failed;
+- why support-rejection/resampling violates the required detailed balance;
+- the published physical basis of the V24.38 microsurface treatment;
+- how reflection and transmission are handled;
+- how multiple scattering is handled;
+- how the macro sphere/spheroid relates to the local microsurface model;
+- what the watchdog means;
+- what remains frozen;
+- what GPU results are required before authorization.
+
+Cite the scientific papers/formulations actually used.
+
+Do not claim "energy conserving" or "reciprocal" merely because a paper says
+the underlying theory is.
+
+The COMPLETE CUDA implementation must demonstrate those properties in the
+independent release tests.
+
+
+============================================================
+16. HOST PREFLIGHT / PACKAGE INTEGRITY
+============================================================
+
+Retain or improve the strong V24.37 package checks.
+
+The final extracted ZIP should check at least:
+
+- all required files present;
+- manifest valid;
+- critical hashes correct;
+- Python source compiles;
+- no package-tree bytecode dependency;
+- non-writable __pycache__ does not break verification;
+- corrected CUDA source passes available syntax/scope checks;
+- validation writer -> summarizer -> decision -> plotter runs end-to-end;
+- Python child processes use sys.executable;
+- no unnecessary nested Bash;
+- sensible Windows path-length budget;
+- no stale executable V24.37 modules;
+- legacy core frozen;
+- unrelated production physics unchanged;
+- campaign cannot run without authorization;
+- corrected production cannot silently convert watchdog failure into a result.
+
+
+============================================================
+17. GPU AVAILABILITY RULE
+============================================================
+
+If you DO have suitable CUDA hardware:
+
+Run the complete V24.38 GPU physics validation.
+
+Only mark:
+
+    validated_physics_correction = true
+    sediment_campaign_authorized = true
+
+if every compulsory gate genuinely passes.
+
+If the GPU validation passes, the canonical campaign may then run the six
+sediment cases.
+
+If the GPU validation fails:
+
+- DO NOT tune the model to H170;
+- DO NOT weaken thresholds;
+- keep the sediment campaign blocked;
+- retain the failure results in the package/audit where appropriate;
+- still produce the V24.38 ZIP.
+
+If you DO NOT have suitable CUDA hardware:
+
+- do not invent CUDA results;
+- do not mark the correction validated;
+- do not run/claim H170 authorization;
+- package all validation code for execution on my CUDA machine;
+- still produce the V24.38 ZIP.
+
+
+============================================================
+18. REQUIRED USER-SIDE COMMAND
+============================================================
+
+The completed release should support a simple canonical run sequence similar
+to:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_38"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_38_package.py && \
+    python verify_v24_38_corrected_boundary.py && \
+    python run_v24_38_campaign.py
+
+Use this workflow unless the implementation genuinely requires another
+command, in which case document the reason clearly.
+
+The verifier should stop with a clear scientific failure if the new boundary
+does not pass.
+
+That is desired behaviour.
+
+Do not let H170 execute after a failed boundary validation.
+
+
+============================================================
+19. FINAL-PACKAGE WORKFLOW
+============================================================
+
+This part is compulsory.
+
+Before delivering:
+
+1. Build the complete CLARITAS_V24_38 directory.
+2. Run the full host preflight.
+3. Run all host validation.
+4. Run CUDA validation too if CUDA is genuinely available.
+5. Generate/update manifests and SHA-256 hashes.
+6. Remove temporary/cache/build artefacts that do not belong in release.
+7. Create:
+
+       CLARITAS_V24_38.zip
+
+8. Test the ZIP's compressed-data integrity.
+9. Extract THAT EXACT ZIP into a fresh directory.
+10. Rerun preflight from the freshly extracted copy.
+11. Rerun the full host verifier from the extracted copy.
+12. Confirm it does not depend on files outside the ZIP.
+13. Confirm it remains functional with a pre-existing non-writable
+    __pycache__ where practical.
+14. Report the final ZIP SHA-256.
+
+
+============================================================
+20. DEFINITION OF DONE
+============================================================
+
+The task is NOT complete when the source has merely been edited.
+
+It is complete only when:
+
+- V24.38.0 has been implemented;
+- the V24.37 support-rejection candidate is absent from corrected production;
+- a physically defensible reciprocal rough-dielectric microsurface transport
+  algorithm has replaced it;
+- all frozen non-boundary physics has been preserved;
+- V24.36.12 known-defect validation is retained;
+- V24.37 known-defect validation is retained;
+- new microsurface-specific validation exists;
+- campaign authorization remains fail-closed;
+- host tests pass;
+- GPU status is stated truthfully;
+- documentation and manifests are updated;
+- the final package has been zipped;
+- the exact ZIP has been integrity-tested and re-extracted;
+- preflight has passed from the extracted ZIP;
+- and the ZIP is supplied to me.
+
+MOST IMPORTANT DELIVERABLE:
+
+    [Download CLARITAS_V24_38.zip]
+
+A downloadable ZIP attachment/link is mandatory in your final response.
+
+Do not tell me merely how to construct it myself.
+
+
+============================================================
+21. FINAL RESPONSE FORMAT
+============================================================
+
+Keep the final response focused.
+
+Report:
+
+1. what physical boundary model V24.38 implements;
+2. the important difference from V24.37;
+3. host-validation status;
+4. GPU-validation status;
+5. whether sediment transport is authorized;
+6. significant validation results if actually measured;
+7. final ZIP SHA-256;
+8. the downloadable CLARITAS_V24_38.zip.
+
+Do not present unrun GPU tests as passed.
+
+Do not present a host-only candidate as physics-authorized.
+
+Do not run H170 unless the independent V24.38 GPU process gate has genuinely
+passed.
+
+And regardless of GPU availability or physics authorization status:
+
+                 THE ZIP FILE IS COMPULSORY.

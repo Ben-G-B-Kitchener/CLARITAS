@@ -1,0 +1,75 @@
+{
+  "release": "V24.52.0",
+  "geometry_gpu_validation_run": true,
+  "geometry_gpu_validation_pass": true,
+  "geometry_manifest_validation_pass": true,
+  "full_region_topology_validation_pass": true,
+  "surface_interface_validation_pass": true,
+  "random_region_classification_validation_pass": true,
+  "corrected_horizontal_free_surface_regression_pass": true,
+  "boundary_one_step_500k_validation_pass": true,
+  "particle_accessibility_validation_pass": true,
+  "v24_50_failure_regression_pass": true,
+  "historical_long_path_local_replay_pass": true,
+  "residual_local_replay_validation_pass": true,
+  "cuda_scalar_input_parity_pass": true,
+  "case_1650_input_parity_regression_pass": true,
+  "memory_layout_regression_pass": true,
+  "deterministic_geometry_validation_pass": true,
+  "headspace_transport_validation_pass": true,
+  "finite_surface_support_validation_pass": true,
+  "internal_acrylic_continuity_zero_rng_pass": true,
+  "source_detector_geometry_consistency_pass": true,
+  "sediment_particle_geometry_consistency_pass": true,
+  "random_region_samples": 300000,
+  "one_step_samples": 500000,
+  "one_step_category_results": [
+    {
+      "release": "V24.52.0",
+      "category": "acrylic",
+      "samples": 290000,
+      "passed": 290000,
+      "mismatches": 0
+    },
+    {
+      "release": "V24.52.0",
+      "category": "water_horizontal",
+      "samples": 70000,
+      "passed": 70000,
+      "mismatches": 0
+    },
+    {
+      "release": "V24.52.0",
+      "category": "water_axial",
+      "samples": 50000,
+      "passed": 50000,
+      "mismatches": 0
+    },
+    {
+      "release": "V24.52.0",
+      "category": "headspace_horizontal",
+      "samples": 60000,
+      "passed": 60000,
+      "mismatches": 0
+    },
+    {
+      "release": "V24.52.0",
+      "category": "headspace_axial",
+      "samples": 30000,
+      "passed": 30000,
+      "mismatches": 0
+    }
+  ],
+  "particle_samples": 100000,
+  "v24_50_failure_states_tested": 512,
+  "v24_50_failure_states_corrected": 512,
+  "historical_local_replay_cases": 14,
+  "historical_local_replay_pass_count": 14,
+  "cuda_compile_seconds": 69.85794780000015,
+  "old_global_orbit_equality_release_gate": false,
+  "geometry_audit_stops_after_complete_gate": true,
+  "production_geometry_changed_from_v24_51": false,
+  "production_cuda_physics_changed_from_v24_51": false,
+  "scientific_result_finalized": false,
+  "h170_used_for_design_or_acceptance": false
+}

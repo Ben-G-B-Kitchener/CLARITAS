@@ -1,0 +1,165 @@
+{
+  "release": "V24.52.0",
+  "host_validation": "PASS",
+  "cuda_available": true,
+  "gpu_stages_run_by_host_verifier": false,
+  "complete_geometry_checks": {
+    "release_config_match": true,
+    "authoritative_tube_dimensions": true,
+    "wall_top_separate_from_water_mean": true,
+    "free_surface_contained": true,
+    "detector_ring_outside_acrylic": true,
+    "detector_bore_geometry_consistent": true,
+    "source_launch_geometry_consistent": true,
+    "particle_scale_fits_vessel": true,
+    "finite_inner_wall_production": true,
+    "finite_outer_wall_source": true,
+    "headspace_transport_production": true,
+    "open_top_distinct_from_mean_surface": true,
+    "source_detector_geometry_audited": true,
+    "internal_acrylic_continuity_zero_rng": true,
+    "no_old_64_reflection_rejection": true,
+    "case_1650_input_parity_regression": true,
+    "corrected_horizontal_free_surface_regression": true,
+    "v24_51_reported_5049_mismatches_fully_reconstructed": true,
+    "production_cuda_src_byte_identical_to_v24_51": true,
+    "v24_50_512_stored_failure_states_host_repaired": true,
+    "all_checks_pass": true
+  },
+  "case_1650_regression": {
+    "release": "V24.52.0",
+    "before_abs_t_error": 1.384853709224948e-06,
+    "after_abs_t_error": 7.26640969617165e-14,
+    "distance_tolerance_m": 5e-07,
+    "tolerance_relaxed": false,
+    "passed": true
+  },
+  "v24_51_one_step_mismatch_reconstruction": {
+    "samples": 500000,
+    "rows": [
+      {
+        "category": "water_horizontal",
+        "samples": 70000,
+        "v24_51_oracle_surface_changes": 3225,
+        "free_surface_first": 3225
+      },
+      {
+        "category": "headspace_horizontal",
+        "samples": 60000,
+        "v24_51_oracle_surface_changes": 1824,
+        "free_surface_first": 1824
+      }
+    ],
+    "total_v24_51_oracle_surface_changes": 5049,
+    "unexplained_against_reported_5049": 0
+  },
+  "horizontal_free_surface_regression": [
+    {
+      "case": "water_wall_first",
+      "region": 1,
+      "expected_surface": 11,
+      "reference_surface": 11,
+      "reference_t": 0.04150000110268593,
+      "free_surface_t": Infinity,
+      "wall_t": 0.04150000110268593,
+      "passed": true
+    },
+    {
+      "case": "water_free_surface_first",
+      "region": 1,
+      "expected_surface": 10,
+      "reference_surface": 10,
+      "reference_t": 0.0037896456456957077,
+      "free_surface_t": 0.0037896456456957077,
+      "wall_t": 0.08650000110268594,
+      "passed": true
+    },
+    {
+      "case": "headspace_wall_first",
+      "region": 4,
+      "expected_surface": 11,
+      "reference_surface": 11,
+      "reference_t": 0.03650000110268593,
+      "free_surface_t": Infinity,
+      "wall_t": 0.03650000110268593,
+      "passed": true
+    },
+    {
+      "case": "headspace_free_surface_first",
+      "region": 4,
+      "expected_surface": 10,
+      "reference_surface": 10,
+      "reference_t": 0.002086491107149506,
+      "free_surface_t": 0.002086491107149506,
+      "wall_t": 0.03650000110268593,
+      "passed": true
+    },
+    {
+      "case": "tangential_no_crossing",
+      "region": 1,
+      "expected_surface": 11,
+      "reference_surface": 11,
+      "reference_t": 0.03552815929019955,
+      "free_surface_t": Infinity,
+      "wall_t": 0.03552815929019955,
+      "passed": true
+    },
+    {
+      "case": "near_axis",
+      "region": 1,
+      "expected_surface": 11,
+      "reference_surface": 11,
+      "reference_t": 0.04649900110268593,
+      "free_surface_t": Infinity,
+      "wall_t": 0.04649900110268593,
+      "passed": true
+    },
+    {
+      "case": "near_wall",
+      "region": 4,
+      "expected_surface": 11,
+      "reference_surface": 11,
+      "reference_t": 0.00019999999999999806,
+      "free_surface_t": Infinity,
+      "wall_t": 0.00019999999999999806,
+      "passed": true
+    },
+    {
+      "case": "near_free_surface",
+      "region": 1,
+      "expected_surface": 10,
+      "reference_surface": 10,
+      "reference_t": 1.1880581995745806e-05,
+      "free_surface_t": 1.1880581995745806e-05,
+      "wall_t": 0.07650000110268593,
+      "passed": true
+    },
+    {
+      "case": "close_but_unambiguous",
+      "region": 4,
+      "expected_surface": 10,
+      "reference_surface": 10,
+      "reference_t": 0.00030002948303260545,
+      "free_surface_t": 0.00030002948303260545,
+      "wall_t": 0.0005000000000000001,
+      "passed": true
+    }
+  ],
+  "cuda_python_abi": {
+    "trace_kernel": 156,
+    "trace_python_launch": 156,
+    "score_detectors_kernel": 47,
+    "score_python_launch": 47,
+    "passed": true
+  },
+  "cpp_cuda_syntax_scope_audit": {
+    "run": true,
+    "passed": true,
+    "compiler": "C:\\MinGW\\bin\\g++.EXE"
+  },
+  "production_cuda_physics_changed_from_v24_51": false,
+  "production_geometry_changed_from_v24_51": false,
+  "production_transport_validated": false,
+  "sediment_campaign_authorized": false,
+  "note": "GPU qualification and sediment diagnostics are intentionally owned by run_v24_52_campaign.py."
+}

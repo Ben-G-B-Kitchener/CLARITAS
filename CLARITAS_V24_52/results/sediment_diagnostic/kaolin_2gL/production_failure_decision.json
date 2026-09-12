@@ -1,0 +1,28 @@
+{
+  "release": "V24.52.0",
+  "n_rays": 1000000,
+  "production_failure_count": 112,
+  "production_failure_fraction": 0.000112,
+  "watchdog_count": 0,
+  "geometry_failure_count": 0,
+  "nonfinite_count": 0,
+  "failure_code_count_closure": true,
+  "case_valid": false,
+  "particle_proposal_count": 13167204,
+  "particle_accessible_count": 13166574,
+  "particle_null_count": 630,
+  "material": "kaolin",
+  "concentration_g_per_L": 2.0,
+  "seed": 2451100,
+  "elapsed_s": 205.68773520000013,
+  "sediment_run_classification": "DIAGNOSTIC / NOT PRODUCTION-AUTHORIZED",
+  "production_authorized_at_execution": false,
+  "failure_code_counts": {
+    "PARTICLE_MICROSURFACE_NUMERICAL": 112
+  },
+  "failure_subcode_counts": {
+    "33": 112
+  },
+  "diagnostic_sample_count": 112,
+  "diagnostic_sample_limit": 512
+}

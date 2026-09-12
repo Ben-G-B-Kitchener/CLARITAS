@@ -1,0 +1,1948 @@
+You are to produce the next complete CLARITAS release:
+
+    V24.42.0
+
+THIS IS AN IMPLEMENTATION TASK, NOT AN ADVISORY, REVIEW, OR PATCH-SUGGESTION TASK.
+
+You must inspect the supplied V24.41.1 source package and its REAL GPU validation results, implement the required corrections, run all host-side validation available to you, construct the complete release package, and RETURN A DOWNLOADABLE ZIP FILE.
+
+A ZIP FILE IS COMPULSORY.
+
+THE TASK IS NOT COMPLETE UNTIL THE FINAL RESPONSE CONTAINS:
+
+    1. a downloadable CLARITAS_V24_42.zip
+    2. the final ZIP SHA-256
+    3. exact copy-paste-ready Git Bash run commands
+
+Do not finish with:
+
+    code snippets only
+    a patch
+    diffs
+    instructions for me to edit files manually
+    an unpackaged source directory
+    a statement that packaging remains to be done
+    multiple alternative ZIP layouts
+
+If CUDA hardware is unavailable in your environment, that does NOT excuse the ZIP requirement.
+
+In that case:
+
+    implement V24.42 fully
+    run every available host-side validation
+    truthfully leave GPU authorization false
+    truthfully leave sediment authorization false
+    package the complete GPU-validation candidate
+    RETURN THE ZIP
+    RETURN THE RUN COMMANDS
+
+Do not ask me to make routine implementation decisions.
+
+Inspect the supplied implementation, verify the numerical diagnosis against the actual V24.41.1 source and REAL GPU outputs, and make the scientifically defensible correction yourself.
+
+
+======================================================================
+1. AUTHORITATIVE INPUTS
+======================================================================
+
+PRIMARY PRODUCTION STARTING POINT:
+
+    CLARITAS_V24_41_1.zip
+
+V24.42 MUST be derived directly from V24.41.1.
+
+Do NOT rebuild production from:
+
+    V24.41.0
+    V24.40
+    V24.39
+    V24.38
+    V24.37
+
+except where those releases are deliberately retained as isolated historical regressions.
+
+AUTHORITATIVE REAL GPU RESULTS:
+
+    the complete V24.41.1 GPU results ZIP supplied with this task
+
+Treat those results as the authoritative measured behaviour of V24.41.1.
+
+
+======================================================================
+2. CRITICAL STATUS AFTER V24.41.1
+======================================================================
+
+V24.41.1 achieved the major production numerical objective.
+
+The REAL GPU results show:
+
+EQUAL-INDEX:
+
+    30000 / 30000 successful
+
+    numerical failures:
+        0
+
+    watchdog failures:
+        0
+
+    maximum direction-error^2:
+        approximately 4.8e-14
+
+    genuine multiple microsurface scattering retained
+
+PROBABILITY / SURVIVAL POPULATION:
+
+    samples:
+        990000
+
+    survived:
+        990000
+
+    numerical failures:
+        0
+
+    watchdogs:
+        0
+
+    absorption:
+        0
+
+    count closure error:
+        0
+
+COMPLETE-KERNEL NUMERICAL FAILURES:
+
+    0
+
+RANDOMIZED HEIGHT STRESS:
+
+    approximately 240000 / 240000 PASS
+
+    status mismatches:
+        0
+
+    numerical failures:
+        0
+
+    maximum height discrepancy:
+        approximately 8.1e-7
+
+COMPLETE-KERNEL RECIPROCITY:
+
+    Kaolin aggregate residual:
+        approximately 0.3345%
+
+    Loess aggregate residual:
+        approximately 0.1148%
+
+    compulsory Qsca>=1 bins:
+        66 / 66 PASS
+
+CROSS-INTERFACE RECIPROCITY:
+
+    264 / 264 PASS
+
+    largest aggregate state residual:
+        approximately 0.353%
+
+Therefore:
+
+    DO NOT REDESIGN THE SMITH-BECKMANN PHYSICAL PROCESS.
+
+V24.41.1 has demonstrated simultaneous:
+
+    zero large-population numerical failures
+    zero equal-index numerical failures
+    correct probability closure
+    successful multiple scattering
+    successful reciprocity
+    successful cross-interface behaviour
+
+V24.42 is a NARROW PRECISION AND VALIDATION-CORRECTNESS RELEASE.
+
+
+======================================================================
+3. DO NOT CHANGE THE SUCCESSFUL PRODUCTION PHYSICS
+======================================================================
+
+Retain the V24.41.1 physical model.
+
+Specifically retain:
+
+    Smith-Beckmann dielectric microsurface random walk
+    Smith height/free-path transport
+    stable Smith Lambda calculation
+    log-domain height sampling
+    signed/full-incidence Beckmann VNDF
+    V24.40 complementary-tail VNDF mathematics
+    V24.41 double-precision numerical improvements
+    physical reflection/refraction
+    physical inside/outside transitions
+    physical microsurface escape
+    physical multiple scattering
+
+Do NOT reintroduce:
+
+    V24.37 support rejection/resampling
+    V24.38 invalid lower-side rejection
+    V24.39 arbitrary VNDF tail clipping
+    geometric-normal fallback
+    artificial escape
+    empirical angular corrections
+    fitted survival factors
+    branch suppression
+    H170 tuning
+    roughness tuning
+
+The main V24.41.1 production transport should remain byte-identical wherever no correction is explicitly required below.
+
+
+======================================================================
+4. REMAINING V24.41.1 BLOCKERS
+======================================================================
+
+V24.41.1 still correctly withheld sediment authorization.
+
+However the remaining failures divide into:
+
+    A. TWO VALIDATION FALSE NEGATIVES
+
+and:
+
+    B. ONE GENUINE ULTRA-GRAZING VNDF PRECISION DEFECT
+
+Do not treat all three as production-physics failures.
+
+
+======================================================================
+5. FALSE NEGATIVE #1: SMITH LAMBDA REFERENCE PRECISION
+======================================================================
+
+The V24.41.1 Smith-Lambda GPU implementation appears numerically correct.
+
+The validator nevertheless reports:
+
+    smith_lambda_pass = false
+
+for a small number of cases.
+
+The cause is that the CPU reference and GPU test are not using numerically identical alpha inputs.
+
+The CUDA test is supplied a float32 roughness alpha equivalent to:
+
+    alpha = np.float32(tan(25 degrees))
+
+while the independent CPU reference uses the unquantized double-precision:
+
+    tan(25 degrees)
+
+This input mismatch is larger than the deliberately tight Lambda comparison tolerance.
+
+Representative measured example:
+
+    c = +0.1
+
+    CUDA:
+        approximately 0.8691697500903656
+
+    current CPU reference:
+        approximately 0.8691697186797003
+
+    apparent difference:
+        approximately 3.14e-8
+
+But recomputing the independent CPU reference using the ACTUAL float32 alpha supplied to CUDA gives approximately:
+
+        0.8691697500903656
+
+which agrees essentially exactly.
+
+Therefore:
+
+    DO NOT LOOSEN THE LAMBDA TOLERANCE.
+
+Instead make the CPU reference use precisely the same quantized input value that the CUDA kernel actually receives.
+
+The test must compare:
+
+    same physical input
+    different independent numerical implementations
+
+not:
+
+    slightly different physical inputs
+    with an artificially relaxed tolerance.
+
+
+======================================================================
+6. CORRECT SMITH-LAMBDA VALIDATION
+======================================================================
+
+Audit the complete Lambda validation path.
+
+Ensure the test records:
+
+    nominal alpha
+    actual CUDA alpha representation
+    CPU-reference alpha representation
+    CUDA Lambda
+    independent-reference Lambda
+    absolute error
+    relative error
+    pass/fail
+
+The independent reference should remain mathematically independent.
+
+Do NOT merely call the production CUDA formula again on the CPU.
+
+The correction should remove the input-precision mismatch while preserving a strict numerical comparison.
+
+Retain the stable V24.41.1 Lambda production implementation unless actual inspection reveals a genuine error.
+
+
+======================================================================
+7. FALSE NEGATIVE #2: FORCED INSIDE-SIDE TEST
+======================================================================
+
+V24.41.1 also reports forced-inside failures at steep states such as approximately:
+
+    wz = -0.95
+    wz = -0.99
+
+These appear to be test-construction failures, not production sampler failures.
+
+Inspect the actual validation kernel.
+
+The V24.41.1 test is believed to contain logic equivalent to:
+
+    smith_G1_height_checked(..., &G1);
+
+where:
+
+    G1 is float
+
+followed by:
+
+    double pHit = 1.0 - (double)G1;
+
+and:
+
+    double U = max(1e-12, 0.25*pHit);
+
+This is invalid for extremely small hit probabilities.
+
+Representative true hit probabilities at the selected validation height are approximately:
+
+    wz=-0.90:
+        pHit ~3.2e-12
+
+    wz=-0.95:
+        pHit ~1.1e-22
+
+    wz=-0.99:
+        pHit ~1.2e-103
+
+For the latter states, float G1 rounds to exactly:
+
+    1.0f
+
+so the validator derives:
+
+    pHit = 0
+
+and then forces:
+
+    U = 1e-12
+
+which is vastly larger than the true physical intersection probability.
+
+The production sampler then correctly returns:
+
+    physical escape
+
+but the validator incorrectly treats this as failure.
+
+VERIFY THIS AGAINST THE ACTUAL SOURCE AND REAL RESULTS.
+
+
+======================================================================
+8. CORRECT THE FORCED-INSIDE TEST MATHEMATICALLY
+======================================================================
+
+Do NOT fix the forced-inside test by:
+
+    increasing the hit probability artificially
+    changing roughness
+    changing height without justification
+    forcing the sampler result to intersection
+    weakening pass/fail semantics
+    applying an arbitrary probability floor
+
+Instead calculate the forced intersection probability in numerically stable double precision using the SAME PHYSICAL Smith height law.
+
+Use a formulation equivalent to the V24.41 log-domain process.
+
+For example, where mathematically appropriate:
+
+    logG1 = Lambda * log(C0)
+
+    pHit = -expm1(logG1)
+
+rather than:
+
+    pHit = 1 - float(G1)
+
+Then choose a deterministic validation random variable safely inside the physical intersection domain, e.g.:
+
+    U = 0.25 * pHit
+
+WITHOUT imposing an arbitrary:
+
+    1e-12
+
+floor.
+
+VERIFY exact random-variable conventions before implementing this.
+
+
+======================================================================
+9. AVOID VALIDATION/PRODUCTION DRIFT
+======================================================================
+
+The forced-intersection validator may need probabilities smaller than the production RNG can ordinarily represent.
+
+Do NOT modify the physical production RNG merely to make a validation test possible.
+
+Where necessary, refactor the Smith height calculation into:
+
+    a shared device/core function accepting U explicitly
+
+and:
+
+    a production wrapper that obtains U from the normal production RNG.
+
+Then the validation kernel may supply a deterministic double-precision U while exercising the SAME shared physical height-sampling mathematics.
+
+This is acceptable because:
+
+    production stochastic behaviour remains unchanged
+    validation can probe mathematically rare states directly
+
+Do not create a separate simplified validation-only physical equation.
+
+
+======================================================================
+10. GENUINE REMAINING DEFECT: ULTRA-GRAZING VNDF
+======================================================================
+
+The remaining genuine numerical defect is in the ultra-grazing signed VNDF path.
+
+V24.41.1 measured approximately:
+
+    wz=-0.9990:
+        0 / 12000 failures
+
+    wz=-0.9995:
+        2 / 12000 failures
+
+    wz=-0.9999:
+        916 / 12000 failures
+
+    wz=-0.99999:
+        0 / 12000 failures
+
+The failures are:
+
+    VNDF_VISIBILITY_FAILURE
+
+The full-sphere stress test also recorded only approximately:
+
+    2 failures / 360000
+
+both in the extreme:
+
+    175-180 degree
+
+angular bin.
+
+The non-monotonic pattern strongly indicates floating-point representation/angle quantization rather than a physical singularity.
+
+
+======================================================================
+11. PRIMARY ULTRA-GRAZING DIAGNOSIS
+======================================================================
+
+Inspect the actual V24.41.1 signed VNDF production code.
+
+A likely bottleneck is equivalent to:
+
+    double cz = ...;
+
+    float theta = (float)acos(cz);
+
+followed by a sampler accepting:
+
+    float theta_i
+
+and internally reconstructing quantities such as:
+
+    cos(theta)
+    sin(theta)
+    cot(theta)
+    slope_i
+
+This throws away the double-precision stretched incidence information immediately before defining the visible-slope support.
+
+At approximately:
+
+    wz=-0.9999
+
+the physically correct stretched support is around:
+
+    slope_i ~ -151.611793
+
+while reconstruction through the float angle was diagnosed at approximately:
+
+    slope_i ~ -151.610293
+
+giving a support shift around:
+
+    0.0015
+
+The measured failure probability is approximately:
+
+    916 / 12000
+    ~7.63%
+
+and the predicted probability associated with this support mismatch was approximately:
+
+    ~7.68%
+
+This is extremely strong evidence for the diagnosis.
+
+At approximately:
+
+    wz=-0.9995
+
+the predicted defect probability was also close to the small measured failure rate.
+
+Therefore:
+
+    VERIFY THIS EXACTLY IN THE SOURCE
+
+and, if confirmed, fix the precision bottleneck without changing the intended VNDF distribution.
+
+
+======================================================================
+12. PREFERRED ULTRA-GRAZING CORRECTION
+======================================================================
+
+Prefer to avoid the numerically wasteful transformation:
+
+    direction
+        -> acos()
+        -> theta
+        -> cos(theta)
+        -> sin(theta)
+        -> cot(theta)
+
+when the required stretched slope can be obtained directly.
+
+Investigate passing a double-precision stretched slope parameter directly.
+
+For an appropriate local coordinate system, a relationship of the form:
+
+    slope_i =
+        sz / hypot(sx, sy)
+
+may provide the required signed cotangent directly.
+
+YOU MUST VERIFY:
+
+    sign
+    coordinate convention
+    stretched-coordinate definition
+    vertical limits
+    lower-side convention
+
+against the actual implementation and published formulation.
+
+Do not blindly paste this equation without checking conventions.
+
+
+======================================================================
+13. IF ANGLE API IS RETAINED
+======================================================================
+
+If a direct slope parameter cannot be cleanly introduced, then at minimum retain:
+
+    theta
+    sin(theta)
+    cos(theta)
+    cot(theta)
+    slope support
+
+in double precision end-to-end through the VNDF support calculation.
+
+Do NOT convert the incidence angle to float before support is determined.
+
+
+======================================================================
+14. DOUBLE-PRECISION VISIBILITY PATH
+======================================================================
+
+Retain sufficient precision through:
+
+    sampled slopes
+    local normal reconstruction
+    normal normalization
+    basis transformation
+    visibility dot product
+
+for ultra-grazing states.
+
+Do not convert to float prematurely.
+
+It is acceptable to convert to ordinary transport precision once the delicate visibility/Fresnel geometry is safely established, if that is numerically justified.
+
+
+======================================================================
+15. DO NOT FIX VNDF BY CHANGING ITS DISTRIBUTION
+======================================================================
+
+Do NOT solve the ultra-grazing issue by:
+
+    forcing dot(w,m) positive
+    clamping visibility to epsilon
+    rejecting and resampling
+    geometric-normal substitution
+    arbitrary support shrinking
+    arbitrary exclusion cone
+    roughness adjustment
+    probability-tail clipping
+
+The intended Beckmann visible-normal distribution must remain unchanged.
+
+This is a REPRESENTATION PRECISION correction.
+
+
+======================================================================
+16. ULTRA-GRAZING TARGETED GPU TESTS
+======================================================================
+
+Retain and strengthen the direct targeted tests.
+
+At minimum include approximately:
+
+    wz=-0.99
+    wz=-0.995
+    wz=-0.999
+    wz=-0.9995
+    wz=-0.9999
+    wz=-0.99999
+
+and meaningful values even closer to -1 where representable.
+
+Also test angular states such as:
+
+    175 degrees
+    177 degrees
+    178 degrees
+    179 degrees
+    179.2 degrees
+    179.5 degrees
+    179.8 degrees
+    179.9 degrees
+
+as numerically meaningful.
+
+For every state record:
+
+    input wz
+    raw incidence angle
+    stretched incidence parameter
+    direct slope_i if used
+    sample count
+    valid samples
+    visibility failures
+    numerical failures
+    minimum visibility dot
+    normalization error
+    sample moments
+    independent reference moments
+
+
+======================================================================
+17. FULL-SPHERE VNDF STRESS REMAINS COMPULSORY
+======================================================================
+
+Retain the existing random full-sphere signed-VNDF stress test.
+
+V24.41.1 was already extremely close to passing this, with only approximately:
+
+    2 / 360000
+
+extreme-bin failures.
+
+V24.42 requires:
+
+    0 failures
+
+across the defined full-sphere population.
+
+Do NOT reduce the population.
+
+
+======================================================================
+18. RETAIN VNDF DISTRIBUTION VALIDATION
+======================================================================
+
+The ultra-grazing correction must not merely make visibility tests pass.
+
+Compare the sampled VNDF against the independent analytical/numerical reference.
+
+Require moment/histogram consistency at representative:
+
+    front-side
+    near-horizontal
+    backside
+    deep-backside
+    ultra-grazing
+
+states.
+
+Ensure the support correction does not bias the distribution.
+
+
+======================================================================
+19. SMITH HEIGHT IMPLEMENTATION IS NOW FROZEN SUCCESSFUL BEHAVIOUR
+======================================================================
+
+The V24.41.1 Smith Lambda + log-domain height correction has succeeded.
+
+Retain:
+
+    complementary-tail stable Lambda
+    signed Lambda treatment
+    double-precision delicate intermediates
+    log-domain G1
+    expm1 escape probability
+    log1p next-CDF calculation
+    explicit numerical failure semantics
+
+Do NOT rewrite these merely because the validator had false negatives.
+
+V24.42 should modify this production code only if inspection proves an actual defect.
+
+
+======================================================================
+20. RETAIN DETAILED FAILURE SUBCODES
+======================================================================
+
+Preserve all V24.41.1 numerical failure subcodes.
+
+Continue distinguishing at least:
+
+    VNDF_PROJECTED_AREA_INVALID
+    VNDF_CDF_INVALID
+    VNDF_INVERSE_CDF_INVALID
+    VNDF_VISIBILITY_FAILURE
+    VNDF_NORMALIZATION_FAILURE
+
+    HEIGHT_LAMBDA_INVALID
+    HEIGHT_C0_INVALID
+    HEIGHT_LOG_C0_INVALID
+    HEIGHT_G1_INVALID
+    HEIGHT_ESCAPE_PROB_INVALID
+    HEIGHT_RANDOM_INVALID
+    HEIGHT_LOG_CNEXT_INVALID
+    HEIGHT_CNEXT_RANGE_INVALID
+    HEIGHT_INVERSE_CDF_INVALID
+    HEIGHT_OUTPUT_INVALID
+    HEIGHT_FREE_PATH_INVALID
+
+    MICROFACET_NORMAL_INVALID
+    REFLECTION_VECTOR_INVALID
+    REFRACTION_VECTOR_INVALID
+    SIDE_STATE_INVALID
+    NONFINITE_DIRECTION
+
+    MICRO_WATCHDOG
+    MACRO_WATCHDOG
+
+Authorization requires:
+
+    every compulsory numerical-failure count = 0
+
+
+======================================================================
+21. EQUAL-INDEX GATE
+======================================================================
+
+Retain the V24.41.1 equal-index test unchanged in physical meaning.
+
+Use:
+
+    n_top = n_bottom
+    k = 0
+
+Require:
+
+    100% survival
+    no direction change beyond tolerance
+    zero numerical failures
+    zero watchdogs
+    no absorption
+    genuine multiple scattering still allowed
+
+V24.41.1 measured:
+
+    30000 / 30000 successful
+
+V24.42 MUST NOT REGRESS THIS.
+
+
+======================================================================
+22. RANDOMIZED HEIGHT STRESS GATE
+======================================================================
+
+Retain the V24.41.1 randomized Smith-height stress test.
+
+V24.41.1 measured approximately:
+
+    240000 / 240000 PASS
+
+with:
+
+    zero numerical failures
+    zero status mismatches
+
+V24.42 MUST NOT REGRESS THIS.
+
+
+======================================================================
+23. LARGE PROBABILITY / SURVIVAL GATE
+======================================================================
+
+Retain the 990000-sample production-path probability/conservation population.
+
+V24.41.1 achieved:
+
+    990000 survived
+    0 absorbed
+    0 numerical failures
+    0 watchdog failures
+    0 count-closure error
+
+V24.42 requires the same successful result.
+
+Do NOT reduce sample count.
+
+
+======================================================================
+24. COMPLETE-KERNEL RECIPROCITY
+======================================================================
+
+Retain the authoritative 66-bin production-kernel reciprocity test.
+
+Use:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+Total:
+
+    66
+
+Retain the exact failure rule:
+
+    relative discrepancy > 1%
+
+AND:
+
+    >= 5 sigma
+
+Do NOT weaken:
+
+    threshold
+    sample count
+    interpretation
+    significance criterion
+
+V24.41.1 passed:
+
+    66 / 66
+
+with approximate aggregate residuals:
+
+    Kaolin ~0.3345%
+    Loess  ~0.1148%
+
+V24.42 MUST NOT REGRESS THIS.
+
+
+======================================================================
+25. CROSS-INTERFACE RECIPROCITY
+======================================================================
+
+Retain all cross-interface tests for both materials:
+
+    outside ordinary
+    outside near-critical
+    TIR near-critical
+    TIR grazing
+
+Total historical V24.41.1 status:
+
+    264 / 264 PASS
+
+V24.42 MUST retain this success.
+
+
+======================================================================
+26. DETERMINISTIC OPTICS
+======================================================================
+
+Retain all deterministic optics tests:
+
+    reflection reversibility
+    refraction reversibility
+    Fresnel reciprocity
+    dielectric n^2 relation
+    stable Snell vector evaluation
+    TIR
+    normal incidence
+    grazing incidence
+    native-mu edge cases
+
+These are successful frozen behaviour.
+
+
+======================================================================
+27. SMOOTH-SURFACE LIMIT
+======================================================================
+
+Retain:
+
+    alpha -> 0
+
+validation.
+
+The microsurface process must converge toward deterministic geometric-normal Fresnel/Snell behaviour.
+
+
+======================================================================
+28. WATCHDOG SEMANTICS
+======================================================================
+
+Retain the high fail-only engineering watchdog:
+
+    4096
+
+unless a compelling implementation reason requires otherwise.
+
+Never reintroduce the historical:
+
+    65-reflection photon sink
+
+Remember:
+
+    watchdog != escape
+    watchdog != absorption
+    watchdog != success
+
+Authorization requires:
+
+    watchdog_hits = 0
+
+
+======================================================================
+29. PRESERVE ALL UNRELATED PHYSICS
+======================================================================
+
+Outside the explicitly permitted V24.42 precision/validation corrections, preserve:
+
+    V24.29 exact-Mie event-rate physics
+    Qsca<1 treatment
+    exact Qsca=1 boundary
+    Mie lookup/data
+    PSDs
+    source geometry
+    apparatus geometry
+    particle geometry
+    detector geometry
+    detector angular response
+    detector scoring
+    SFH213 response
+    material optical constants
+    water refractive index
+    particle refractive indices
+    k = 0
+    RMS roughness slope = 25 degrees
+    wave model
+    vortex model
+    sediment transport
+    H170 geometry
+    H170 cases
+    event codes
+    source/detector symmetry
+    all unrelated CUDA transport physics
+
+DO NOT TUNE THE 25-DEGREE ROUGHNESS.
+
+No H170 output may be used to design, tune, select, normalize, or accept V24.42.
+
+
+======================================================================
+30. PRODUCTION CALL-GRAPH AUDIT
+======================================================================
+
+Audit all production paths using the rough dielectric boundary.
+
+At minimum inspect functions/roles equivalent to:
+
+    sphere_fresnel_interaction_3d
+
+    spheroid_fresnel_scatter_direction_only_3d
+
+    smith_microsurface_dielectric_walk
+
+    smith_sample_height
+
+    smith_beckmann_lambda
+
+    beckmann_vndf_normal_signed
+
+    beckmann_sample11_signed
+
+    ultra-grazing reconstruction/support helper
+
+    wave/incoherent rough-particle paths
+
+Do not fix only one route.
+
+All production rough-boundary paths must use one consistent corrected V24.42 precision treatment.
+
+
+======================================================================
+31. VALIDATE REAL PRODUCTION CODE
+======================================================================
+
+Do not create a cleaner idealized VNDF implementation only for validation.
+
+Authoritative GPU tests must exercise:
+
+    actual production device functions
+
+or:
+
+    byte-identical/shared device code
+
+Validation and production physics must not drift.
+
+
+======================================================================
+32. RETAIN HISTORICAL KNOWN-BAD REGRESSIONS
+======================================================================
+
+V24.42 must continue rejecting historical defects.
+
+Retain:
+
+A. V24.36.12 known-bad
+
+    >70% macro-TIR reciprocity defect.
+
+B. V24.37 known-bad
+
+    support rejection/resampling
+    ~19% complete-kernel reciprocity defect
+    >48% grazing cross-interface defect.
+
+C. V24.38 known-bad
+
+    incorrect lower-side VNDF
+    ~10.93% equal-index failures.
+
+D. V24.39 known-bad
+
+    truncated signed-VNDF tail
+    ~281/30000 equal-index numerical failures
+    ~34104/990000 probability numerical failures.
+
+E. V24.40 known-bad
+
+    unstable Smith Lambda / height CDF
+    ~280/30000 equal-index failures
+    ~34187/990000 probability numerical failures
+    ~122915 HEIGHT_CDF_INVALID
+    ultra-grazing VNDF defect.
+
+F. ADD V24.41.1 KNOWN-DEFECT REGRESSION
+
+This must demonstrate, independently:
+
+    1. the Lambda validator input-precision mismatch
+
+    2. the forced-inside float-G1 / 1e-12-floor test-construction defect
+
+    3. the float-theta ultra-grazing VNDF support defect
+
+The first two are validation defects.
+
+The third is a genuine production numerical defect.
+
+Do not incorrectly characterize all three as physical-model failures.
+
+Historical code must remain isolated from production.
+
+
+======================================================================
+33. RELEASE DECISION FIELDS
+======================================================================
+
+Retain factual independent decision reporting.
+
+At minimum include:
+
+    gpu_acquisition_pass
+
+    deterministic_optics_pass
+
+    smith_lambda_pass
+
+    smith_lambda_reference_precision_pass
+
+    randomized_height_stress_pass
+
+    height_sampler_pass
+
+    signed_vndf_pass
+
+    ultra_grazing_vndf_pass
+
+    full_sphere_vndf_stress_pass
+
+    vndf_distribution_pass
+
+    equal_index_pass
+
+    forced_inside_second_hit_pass
+
+    forced_inside_probability_construction_pass
+
+    smooth_limit_pass
+
+    corrected_kernel_reciprocity_pass
+
+    all_qsca_ge_1_bins_pass
+
+    cross_interface_reciprocity_pass
+
+    probability_conservation_pass
+
+    watchdog_zero_hits
+
+    numerical_failures_zero
+
+    legacy_identity_pass
+
+    known_bad_v24_36_rejected
+
+    known_bad_v24_37_rejected
+
+    known_bad_v24_38_rejected
+
+    known_bad_v24_39_rejected
+
+    known_bad_v24_40_rejected
+
+    known_bad_v24_41_rejected
+
+    validated_physics_correction
+
+    sediment_campaign_authorized
+
+A failure in one independent gate must not falsify another factual field.
+
+
+======================================================================
+34. EXPECTED V24.42 GPU SUCCESS CONDITIONS
+======================================================================
+
+V24.42 authorization requires ALL compulsory gates to pass.
+
+In particular:
+
+    Smith Lambda:
+        PASS using identical CUDA/reference alpha input
+
+    forced-inside:
+        PASS with mathematically correct double-precision forcing probability
+
+    equal-index:
+        30000/30000 or configured equivalent
+        0 numerical failures
+        0 watchdogs
+
+    randomized height:
+        0 failures
+        0 mismatches
+
+    probability population:
+        0 numerical failures
+        0 watchdogs
+        0 absorption for k=0
+
+    ultra-grazing VNDF:
+        0 visibility failures
+
+    full-sphere VNDF:
+        0 failures
+
+    complete-kernel reciprocity:
+        all 66 bins PASS
+
+    cross-interface:
+        all required rows PASS
+
+    deterministic optics:
+        PASS
+
+    smooth limit:
+        PASS
+
+    all known-bad historical regressions:
+        correctly rejected
+
+
+======================================================================
+35. DO NOT DECLARE FAILURE JUST BECAUSE STOCHASTIC VALUES CHANGE
+======================================================================
+
+V24.42's numerical precision correction may alter random trajectories slightly in the ultra-grazing domain.
+
+Do not demand bitwise identity of corrected rough-boundary trajectories with V24.41.1 where increased precision legitimately changes a floating-point decision.
+
+Instead require:
+
+    preserved physical distribution
+    conserved probability
+    zero numerical failures
+    successful statistical reciprocity
+    correct analytical VNDF moments
+
+Unrelated frozen physics should remain byte-identical where required.
+
+
+======================================================================
+36. NUMPY / CUDA PORTABILITY
+======================================================================
+
+Retain all portability fixes already established.
+
+Specifically:
+
+    no unguarded np.trapz dependency
+
+    no bare NAN token that NVRTC cannot resolve
+
+    no bare INFINITY token that NVRTC cannot resolve
+
+Use the established NVRTC-portable IEEE sentinel implementation.
+
+Add host audit for assembled:
+
+    production CUDA + validation CUDA
+
+so no such tokens can silently reappear.
+
+The user must not need:
+
+    NumPy monkey patches
+    manual CUDA source edits
+
+
+======================================================================
+37. PLOTTING
+======================================================================
+
+Retain useful V24.42 validation plots.
+
+Avoid log-scale warnings when a plotted series contains no positive values.
+
+Do not change scientific data merely to make a plot render.
+
+Plots are reporting outputs, not release gates unless explicitly defined as such.
+
+
+======================================================================
+38. FAIL-CLOSED CAMPAIGN GATING
+======================================================================
+
+Preserve the sequence:
+
+    package preflight
+        |
+        v
+    host validation
+        |
+        v
+    real GPU physics validation
+        |
+        v
+    process decision
+        |
+        +--- FAIL ---> STOP
+        |             NO H170
+        |
+        +--- PASS ---> authorization receipt
+                           |
+                           v
+                       H170 campaign
+
+If ANY compulsory GPU gate fails:
+
+    validated_physics_correction = false
+
+    sediment_campaign_authorized = false
+
+    H170 MUST NOT RUN
+
+Reject:
+
+    missing receipt
+    stale receipt
+    wrong-version receipt
+    host-only receipt
+    incomplete GPU validation
+    failed receipt
+    mismatched code hashes
+    mismatched validation hashes
+
+No trivial command-line bypass.
+
+
+======================================================================
+39. GPU AVAILABILITY RULE
+======================================================================
+
+If genuine compatible CUDA hardware IS available:
+
+    run the complete GPU validation
+
+If all gates pass:
+
+    validated_physics_correction = true
+
+    sediment_campaign_authorized = true
+
+and allow the canonical H170 campaign.
+
+If any gate fails:
+
+    do not tune H170
+    do not tune roughness
+    do not weaken thresholds
+    do not hide failures
+    keep sediment blocked
+
+Regardless of pass/fail:
+
+    STILL RETURN THE ZIP.
+
+If CUDA is unavailable:
+
+    do not invent GPU results
+
+    validated_physics_correction = false
+
+    sediment_campaign_authorized = false
+
+    do not run H170
+
+    STILL RETURN THE ZIP.
+
+
+======================================================================
+40. VERSIONING
+======================================================================
+
+Up-version the complete executable release consistently to:
+
+    V24.42.0
+
+Canonical release directory:
+
+    CLARITAS_V24_42
+
+Expected important equivalents include:
+
+    claritas_tardiis_core_v24_42.py
+
+    claritas_v24_42_config.json
+
+    v24_42_model.py
+
+    v24_42_release.py
+
+    v24_42_validation.py
+
+    v24_42_legacy_core.py
+
+    preflight_v24_42_package.py
+
+    verify_v24_42_corrected_boundary.py
+
+    summarize_v24_42_corrected_boundary.py
+
+    plot_v24_42_corrected_boundary.py
+
+    run_v24_42_case.py
+
+    run_v24_42_campaign.py
+
+and all other architecture-required versioned files.
+
+Audit:
+
+    imports
+    subprocess calls
+    configs
+    output names
+    documentation
+    manifests
+    version strings
+    receipts
+
+There must be no stale V24.41 executable module controlling V24.42 production.
+
+
+======================================================================
+41. PACKAGE FORMAT — DO NOT CHANGE THIS
+======================================================================
+
+Use the ORIGINAL CLARITAS release packaging structure.
+
+The ZIP must contain ONE top-level release folder:
+
+    CLARITAS_V24_42.zip
+        |
+        +-- CLARITAS_V24_42/
+              |
+              +-- preflight_v24_42_package.py
+              +-- verify_v24_42_corrected_boundary.py
+              +-- run_v24_42_campaign.py
+              +-- ...
+
+DO NOT provide:
+
+    a flat ZIP
+
+DO NOT provide:
+
+    CLARITAS_V24_42_FLAT.zip
+
+DO NOT provide:
+
+    multiple archive alternatives
+
+DO NOT nest the release folder twice.
+
+Correct:
+
+    CLARITAS_V24_42.zip
+        CLARITAS_V24_42/
+            files...
+
+Incorrect:
+
+    CLARITAS_V24_42.zip
+        files...
+
+Incorrect:
+
+    CLARITAS_V24_42.zip
+        CLARITAS_V24_42/
+            CLARITAS_V24_42/
+                files...
+
+The user will extract:
+
+    CLARITAS_V24_42.zip
+
+into:
+
+    /f/Google Drive Sync/CLARITAS_code/CLARITAS/
+
+and expects the resulting directory to be:
+
+    /f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_42/
+
+
+======================================================================
+42. DOCUMENTATION
+======================================================================
+
+Update at minimum:
+
+    README.md
+    RELEASE_NOTES.txt
+    PACKAGE_MANIFEST.json
+    SHA256SUMS.txt
+
+and appropriate numerical/physics audit documents.
+
+Explain clearly:
+
+    V24.37 support-resampling defect
+
+    V24.38 lower-side VNDF defect
+
+    V24.39 signed-VNDF reciprocity improvement
+
+    V24.40 height-CDF failure diagnosis
+
+    V24.41 stable Lambda/log-height correction
+
+    V24.41.1 zero numerical failures in large production populations
+
+    V24.41.1 66/66 reciprocity success
+
+    V24.41.1 264/264 cross-interface success
+
+    Lambda-validator precision mismatch
+
+    forced-inside validator probability construction defect
+
+    ultra-grazing float-theta VNDF support defect
+
+    V24.42 direct double-precision support treatment
+
+    frozen physical state
+
+    fail-closed H170 authorization
+
+Cite authoritative Smith/Beckmann/Heitz references actually used.
+
+Do not claim validation success merely because theory predicts it.
+
+
+======================================================================
+43. HOST PREFLIGHT
+======================================================================
+
+Retain or strengthen the existing adversarial host audit.
+
+At minimum verify:
+
+    all required files exist
+
+    package manifest valid
+
+    all critical hashes match
+
+    Python compiles in memory
+
+    no package-tree .pyc dependency
+
+    non-writable __pycache__ tolerated
+
+    NumPy compatibility passes
+
+    no unguarded np.trapz
+
+    no bare NVRTC-hostile NAN/INFINITY tokens
+
+    frozen V24.29 physics retained
+
+    frozen legacy identity retained
+
+    25-degree roughness retained
+
+    k=0 retained
+
+    stable V24.41 height implementation retained
+
+    no V24.37 support resampling
+
+    no V24.38 invalid lower-side rejection
+
+    no V24.39 arbitrary tail truncation
+
+    no V24.40 unstable height pow arithmetic
+
+    no float-theta bottleneck in corrected ultra-grazing V24.42 path
+
+    no stochastic geometric fallback
+
+    no numerical-error-as-escape
+
+    no H170 tuning
+
+    no empirical loss
+
+    Python children use sys.executable
+
+    no unnecessary nested Bash
+
+    Windows path length remains acceptable
+
+    assembled production+validation CUDA passes syntax/scope surrogate
+
+    writer -> summarizer -> decision -> plotter executes
+
+    campaign rejects invalid receipts
+
+
+======================================================================
+44. COMPULSORY FINAL ZIP WORKFLOW
+======================================================================
+
+THIS SECTION IS NON-OPTIONAL.
+
+Before answering the user:
+
+1. Build:
+
+       CLARITAS_V24_42
+
+2. Run:
+
+       python preflight_v24_42_package.py
+
+3. Run the complete host verifier.
+
+4. Run CUDA validation if suitable CUDA hardware is genuinely available.
+
+5. Generate/update all documentation.
+
+6. Generate/update:
+
+       PACKAGE_MANIFEST.json
+
+7. Generate/update:
+
+       SHA256SUMS.txt
+
+8. Remove unintended:
+
+       __pycache__
+       .pyc
+       temporary build files
+       previous results
+       transient compiler files
+
+9. Create EXACTLY:
+
+       CLARITAS_V24_42.zip
+
+10. Ensure the archive structure is EXACTLY:
+
+       CLARITAS_V24_42.zip
+           CLARITAS_V24_42/
+               ...
+
+11. Test compressed ZIP integrity.
+
+12. Extract THAT EXACT ZIP into a fresh empty directory.
+
+13. Confirm extraction produces exactly one top-level:
+
+       CLARITAS_V24_42
+
+14. From that extracted package run:
+
+       python preflight_v24_42_package.py
+
+15. Run the COMPLETE host verifier from the extracted package.
+
+16. Verify SHA256SUMS.txt from the extracted package.
+
+17. Confirm no file outside the ZIP is required.
+
+18. Where practical rerun with a pre-existing non-writable:
+
+       __pycache__
+
+19. Calculate the final SHA-256 of:
+
+       CLARITAS_V24_42.zip
+
+20. Attach THAT EXACT ZIP to the final response.
+
+DO NOT respond before the ZIP exists.
+
+
+======================================================================
+45. REQUIRED USER RUN COMMANDS
+======================================================================
+
+The final response MUST include these copy-paste-ready Git Bash commands:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_42"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_42_package.py && \
+    python verify_v24_42_corrected_boundary.py && \
+    python run_v24_42_campaign.py
+
+Do not omit them.
+
+Do not give alternative directory structures.
+
+
+======================================================================
+46. DEFINITION OF DONE
+======================================================================
+
+The task is complete ONLY when:
+
+    V24.42.0 is implemented
+
+    V24.41.1 is the production starting point
+
+    successful V24.41 stable Lambda/log-height physics is retained
+
+    equal-index remains 100% successful in corrected production
+
+    large probability population remains zero-failure
+
+    randomized height stress remains zero-failure
+
+    Lambda validation compares identical alpha input precision
+
+    strict Lambda tolerance remains
+
+    forced-inside probability is constructed correctly in double precision
+
+    no arbitrary U probability floor corrupts rare-state testing
+
+    ultra-grazing float-theta support bottleneck is removed
+
+    ultra-grazing VNDF produces zero visibility failures
+
+    full-sphere VNDF stress produces zero failures
+
+    VNDF distribution remains correct
+
+    all 66 Qsca>=1 reciprocity bins pass
+
+    all cross-interface cases pass
+
+    deterministic optics pass
+
+    smooth limit passes
+
+    all historical known-bad regressions remain effective
+
+    numerical failures remain explicit
+
+    watchdogs remain fail-only
+
+    no H170 tuning occurs
+
+    fail-closed campaign gating remains
+
+    host validation passes
+
+    GPU status is reported truthfully
+
+    documentation is updated
+
+    manifests/hashes are generated
+
+    final ZIP integrity passes
+
+    exact ZIP is re-extracted and retested
+
+    final SHA-256 is reported
+
+    CLARITAS_V24_42.zip is actually downloadable
+
+    exact Git Bash run commands are supplied
+
+
+======================================================================
+47. FINAL RESPONSE FORMAT
+======================================================================
+
+The final answer MUST report:
+
+    V24.42 numerical changes
+
+    confirmation that V24.41.1 production physics was retained
+
+    Lambda-reference precision fix
+
+    forced-inside validation fix
+
+    ultra-grazing VNDF precision fix
+
+    host validation status
+
+    GPU validation status
+
+    Smith Lambda result if actually run
+
+    forced-inside result if actually run
+
+    equal-index result if actually run
+
+    randomized-height result if actually run
+
+    probability-population numerical failure count if actually run
+
+    watchdog count if actually run
+
+    ultra-grazing VNDF result if actually run
+
+    full-sphere VNDF result if actually run
+
+    complete-kernel 66-bin reciprocity result if actually run
+
+    cross-interface result if actually run
+
+    validated_physics_correction value
+
+    sediment_campaign_authorized value
+
+    final ZIP SHA-256
+
+    downloadable CLARITAS_V24_42.zip
+
+    exact Git Bash commands
+
+
+======================================================================
+48. NON-NEGOTIABLE FINAL HANDOFF
+======================================================================
+
+THE FINAL RESPONSE MUST CONTAIN AN ACTUAL LINK:
+
+    [Download CLARITAS_V24_42.zip]
+
+It is NOT acceptable to say:
+
+    "the ZIP can be created"
+    "packaging remains"
+    "I can provide the ZIP next"
+    "here are the changed files"
+    "use this patch"
+
+THE ZIP MUST ALREADY EXIST.
+
+The archive layout must be:
+
+    CLARITAS_V24_42.zip
+        CLARITAS_V24_42/
+            ...
+
+The final response MUST ALSO contain:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_42"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_42_package.py && \
+    python verify_v24_42_corrected_boundary.py && \
+    python run_v24_42_campaign.py
+
+
+======================================================================
+49. ABSOLUTE NON-NEGOTIABLE RULES
+======================================================================
+
+DO NOT:
+
+    redesign the now-successful physical random walk
+
+    weaken the >1% AND >=5 sigma reciprocity gate
+
+    weaken the Lambda tolerance merely to fix the validator
+
+    retain mismatched alpha precision between CUDA and reference
+
+    use float G1 to construct ultra-small forced-hit probabilities
+
+    impose a 1e-12 forced-hit probability floor
+
+    retain the float-theta ultra-grazing support bottleneck
+
+    alter the VNDF distribution merely to eliminate visibility errors
+
+    clamp visibility positive
+
+    reject/resample difficult microfacets
+
+    add geometric fallback
+
+    convert numerical failure to escape
+
+    tune H170
+
+    tune roughness
+
+    add empirical correction factors
+
+    change frozen Mie/event-rate physics
+
+    reduce difficult validation populations
+
+    remove ultra-grazing cases
+
+    invent GPU results
+
+    authorize sediment without real-GPU validation
+
+    change the established ZIP folder structure
+
+    provide a flat ZIP
+
+    provide multiple alternative ZIPs
+
+    finish without the ZIP
+
+    finish without run commands
+
+
+MOST IMPORTANT:
+
+THE TASK IS NOT COMPLETE UNTIL YOU HAVE ACTUALLY CREATED AND ATTACHED:
+
+    CLARITAS_V24_42.zip
+
+WITH EXACTLY THIS ARCHIVE STRUCTURE:
+
+    CLARITAS_V24_42.zip
+        CLARITAS_V24_42/
+            files...
+
+AND PROVIDED THESE COPY-PASTE-READY COMMANDS:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_42"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_42_package.py && \
+    python verify_v24_42_corrected_boundary.py && \
+    python run_v24_42_campaign.py
+
+THE ZIP FILE, CORRECT ZIP FOLDER STRUCTURE, AND RUN COMMANDS ARE ALL COMPULSORY.

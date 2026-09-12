@@ -1,0 +1,22 @@
+{
+  "release": "V24.52.0",
+  "n_rays": 100000,
+  "production_failure_count": 0,
+  "production_failure_fraction": 0.0,
+  "watchdog_count": 0,
+  "geometry_failure_count": 0,
+  "nonfinite_count": 0,
+  "failure_code_count_closure": true,
+  "case_valid": true,
+  "particle_proposal_count": 165136,
+  "particle_accessible_count": 165055,
+  "particle_null_count": 81,
+  "material": "loess",
+  "concentration_g_per_L": 2.0,
+  "seed": 2441100,
+  "qualification_kind": "pre_authorization_integrity_matrix",
+  "failure_code_counts": {},
+  "failure_subcode_counts": {},
+  "diagnostic_sample_count": 0,
+  "diagnostic_sample_limit": 512
+}

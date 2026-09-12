@@ -1,0 +1,247 @@
+{
+  "release": "V24.52.0",
+  "coordinate_reference": "sensor/detector plane z=0; +z upward along tube",
+  "authoritative_apparatus_reference": {
+    "citation": "Kitchener et al., HardwareX 5 (2019) e00052, Section 5.1",
+    "url": "https://eprints.whiterose.ac.uk/id/eprint/141481/1/1-s2.0-S2468067218300762-main.pdf",
+    "supported_dimensions": "tube length 491 mm; ID 93 mm; OD 100 mm; acrylic disc closes one end"
+  },
+  "dimensions": [
+    {
+      "parameter": "tube_inner_radius_m",
+      "value": 0.0465,
+      "unit": "m",
+      "physical_meaning": "physical acrylic tube inner radius",
+      "source_provenance": "HardwareX: 93 mm internal diameter",
+      "status": "authoritative apparatus literature",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "tube_outer_radius_m",
+      "value": 0.05,
+      "unit": "m",
+      "physical_meaning": "physical acrylic tube outer radius",
+      "source_provenance": "HardwareX: 100 mm external diameter",
+      "status": "authoritative apparatus literature",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "tube_length_m",
+      "value": 0.491,
+      "unit": "m",
+      "physical_meaning": "physical acrylic tube length",
+      "source_provenance": "HardwareX: 491 mm tube length",
+      "status": "authoritative apparatus literature",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "sensor_height_above_bottom_m",
+      "value": 0.093,
+      "unit": "m",
+      "physical_meaning": "sensor plane height above internal bottom",
+      "source_provenance": "CLARITAS experimental configuration",
+      "status": "project configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "water_height_m",
+      "value": 0.142,
+      "unit": "m",
+      "physical_meaning": "mean water depth above internal bottom",
+      "source_provenance": "CLARITAS experiment configuration",
+      "status": "project configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "bottom_disc_thickness_m",
+      "value": 0.003,
+      "unit": "m",
+      "physical_meaning": "acrylic bottom disc thickness used by optical model",
+      "source_provenance": "CLARITAS apparatus configuration",
+      "status": "project assumption",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "Z_cell_bottom_m",
+      "value": -0.093,
+      "unit": "m",
+      "physical_meaning": "internal water/acrylic bottom elevation relative to sensor plane",
+      "source_provenance": "derived: -sensor height",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "Z_outer_bottom_m",
+      "value": -0.096,
+      "unit": "m",
+      "physical_meaning": "external bottom acrylic face",
+      "source_provenance": "derived: Z_cell_bottom-bottom thickness",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "Z_water_mean_m",
+      "value": 0.04899999999999999,
+      "unit": "m",
+      "physical_meaning": "mean free-surface elevation relative to sensor plane",
+      "source_provenance": "derived: water height-sensor height",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "Z_wall_top_m",
+      "value": 0.398,
+      "unit": "m",
+      "physical_meaning": "physical acrylic tube top relative to sensor plane",
+      "source_provenance": "derived: tube length-sensor height",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "free_surface_centre_m",
+      "value": 0.010106395724732778,
+      "unit": "m",
+      "physical_meaning": "localized vortex centre surface elevation",
+      "source_provenance": "derived from configured Scully surface",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "free_surface_wall_m",
+      "value": 0.06010639572473279,
+      "unit": "m",
+      "physical_meaning": "localized vortex wall surface elevation",
+      "source_provenance": "derived from configured Scully surface",
+      "status": "derived",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "sensor_ring_inner_radius_m",
+      "value": 0.0505,
+      "unit": "m",
+      "physical_meaning": "inner radius of source/detector ring",
+      "source_provenance": "CLARITAS apparatus machining configuration",
+      "status": "project apparatus configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "sensor_ring_outer_radius_m",
+      "value": 0.0655,
+      "unit": "m",
+      "physical_meaning": "outer radius of source/detector ring",
+      "source_provenance": "CLARITAS apparatus machining configuration",
+      "status": "project apparatus configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "source_launch_radius_m",
+      "value": 0.0655,
+      "unit": "m",
+      "physical_meaning": "source launch reference radius",
+      "source_provenance": "CLARITAS source geometry configuration",
+      "status": "project configuration / documented assumption",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "through_bore_radius_m",
+      "value": 0.002,
+      "unit": "m",
+      "physical_meaning": "source/detector through-bore radius",
+      "source_provenance": "CLARITAS apparatus machining configuration",
+      "status": "project apparatus configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "counterbore_radius_m",
+      "value": 0.00435,
+      "unit": "m",
+      "physical_meaning": "source/detector counterbore radius",
+      "source_provenance": "CLARITAS apparatus machining configuration",
+      "status": "project apparatus configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    },
+    {
+      "parameter": "counterbore_depth_m",
+      "value": 0.008,
+      "unit": "m",
+      "physical_meaning": "source/detector counterbore depth",
+      "source_provenance": "CLARITAS apparatus machining configuration",
+      "status": "project apparatus configuration",
+      "cuda_representation": "float32 where passed to transport",
+      "host_reference_representation": "same CUDA-effective scalar value, double-precision calculations"
+    }
+  ],
+  "derived_relationships": {
+    "wall_top_above_mean_surface_m": 0.34900000000000003,
+    "wall_top_above_vortex_wall_surface_m": 0.3378936042752672,
+    "free_surface_contained_by_wall": true,
+    "detector_ring_radial_clearance_from_acrylic_m": 0.0005000000000000004,
+    "source_launch_at_or_outside_ring_inner": true,
+    "source_launch_z_reference_within_wall_support": true
+  },
+  "source_detector_geometry": {
+    "sensor_plane_z_m": 0.0,
+    "ring_inner_radius_m": 0.0505,
+    "ring_outer_radius_m": 0.0655,
+    "source_launch_radius_m": 0.0655,
+    "through_bore_radius_m": 0.002,
+    "counterbore_radius_m": 0.00435,
+    "counterbore_depth_m": 0.008,
+    "detector_angles_deg": [
+      0,
+      10,
+      20,
+      30,
+      40,
+      50,
+      60,
+      70,
+      80,
+      90,
+      100,
+      110,
+      120,
+      130,
+      140,
+      150,
+      160,
+      170
+    ],
+    "consistency_assertions": [
+      "ring_inner_radius > acrylic_outer_radius",
+      "ring_outer_radius > ring_inner_radius",
+      "through_bore_radius < counterbore_radius",
+      "sensor/source z reference lies inside finite sidewall support"
+    ]
+  },
+  "sediment_particle_geometry": {
+    "particle_domain": "finite sphere centres proposed in water only",
+    "required_clearances": [
+      "full finite sphere inside Rin",
+      "sphere above Zmin bottom",
+      "sphere below spatially varying free surface over finite footprint"
+    ],
+    "free_surface_criterion": "lowest free-surface point under the finite spherical footprint"
+  },
+  "assumptions": [
+    "tube is open at its upper end unless a future apparatus-specific closure is explicitly configured",
+    "external medium is air for sidewall/top; configured bottom external refractive index applies to outer bottom face"
+  ]
+}

@@ -1,0 +1,2022 @@
+You are to produce the next complete CLARITAS release:
+
+    V24.45.0
+
+THIS IS AN IMPLEMENTATION TASK.
+
+THIS IS NOT:
+
+    an advisory task
+    a review task
+    a patch-suggestion task
+    a “here is what I would change” task
+
+YOU MUST ACTUALLY MODIFY THE SUPPLIED V24.44 RELEASE, BUILD V24.45.0, TEST IT AS FAR AS YOUR ENVIRONMENT ALLOWS, PACKAGE IT, AND RETURN THE ACTUAL ZIP FILE.
+
+======================================================================
+ABSOLUTE OUTPUT REQUIREMENT
+======================================================================
+
+THE TASK IS NOT COMPLETE UNTIL YOUR FINAL RESPONSE CONTAINS ALL THREE:
+
+    1. AN ACTUAL DOWNLOADABLE FILE:
+
+           CLARITAS_V24_45.zip
+
+    2. THE SHA-256 OF THAT EXACT ZIP
+
+    3. THESE COPY-PASTE-READY GIT BASH RUN COMMANDS:
+
+           cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_45"
+
+           conda activate claritas
+
+           rm -rf ~/.cupy/kernel_cache
+           rm -rf ~/.cupy/jitify_cache
+           rm -rf results
+           rm -rf __pycache__
+
+           python preflight_v24_45_package.py && \
+           python verify_v24_45_corrected_boundary.py && \
+           python run_v24_45_campaign.py
+
+DO NOT FINISH WITHOUT THE ZIP.
+
+DO NOT SAY:
+
+    “I can make the ZIP next”
+    “the package is ready to be zipped”
+    “here are the changed files”
+    “packaging remains”
+    “I cannot attach files”
+    “use this patch”
+    “apply these edits manually”
+
+THE ZIP MUST ALREADY EXIST BEFORE YOU ANSWER.
+
+If CUDA hardware is not available in your environment:
+
+    that does NOT excuse the ZIP requirement.
+
+In that case:
+
+    implement the release fully
+    run all possible host validation
+    truthfully leave real-GPU qualification unverified
+    leave production_transport_validated = false
+    leave sediment_campaign_authorized = false
+    STILL BUILD THE ZIP
+    STILL TEST THE ZIP
+    STILL ATTACH THE ZIP
+    STILL PROVIDE THE SHA-256
+    STILL PROVIDE THE RUN COMMANDS
+
+
+======================================================================
+1. AUTHORITATIVE STARTING POINT
+======================================================================
+
+PRIMARY PRODUCTION SOURCE:
+
+    CLARITAS_V24_44.zip
+
+V24.45 MUST be derived directly from V24.44.
+
+Also inspect:
+
+    the complete REAL V24.44 results archive
+
+Use older releases only as isolated historical regression references.
+
+Do NOT rebuild production from:
+
+    V24.43
+    V24.42
+    V24.41
+    or older
+
+except for deliberately isolated regression material.
+
+
+======================================================================
+2. AUTHORITATIVE V24.44 REAL-GPU / PRODUCTION RESULT
+======================================================================
+
+V24.44 made a substantial improvement.
+
+The original V24.43 failure:
+
+    WATER_BOUNDARY_NO_INTERSECTION
+    WATER_NO_BOUNDARY
+
+was reduced to:
+
+    0
+
+This indicates that the V24.44 finite bottom-disc and sub-EPS_F
+cylinder-intersection changes were successful.
+
+The dedicated:
+
+    Smith-Beckmann boundary validation
+    geometry validation
+    reciprocity validation
+
+continued to pass.
+
+The exact full production qualification remained:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+V24.44 reduced the production failures from:
+
+    466
+
+to:
+
+    180
+
+The remaining failures split into two distinct groups:
+
+    139:
+        ACRYLIC_ANNULUS_BOUNCE_LIMIT
+        ACRYLIC_BOUNCE_LIMIT
+
+    41:
+        INVALID_MEDIUM_STATE
+        WATER_OUTSIDE_INNER_RADIUS
+
+Approximate total production failure rate:
+
+    180 / 1000000
+    = 0.018%
+
+Importantly:
+
+    microsurface failures = 0
+    non-finite failures   = 0
+
+DO NOT MODIFY THE SUCCESSFUL SMITH-BECKMANN PHYSICS.
+
+
+======================================================================
+3. PRIMARY V24.45 OBJECTIVES
+======================================================================
+
+V24.45 has TWO main geometry/transport objectives:
+
+    A. make the acrylic sidewall annulus genuinely finite in z
+
+    B. investigate and correct the near-wall finite-particle interaction
+       that appears to create WATER_OUTSIDE_INNER_RADIUS states
+
+These are full-apparatus geometry/transport corrections.
+
+Do not redesign the rough-particle microsurface model.
+
+
+======================================================================
+4. DEFECT A:
+   ACRYLIC ANNULUS IS STILL EFFECTIVELY INFINITE IN Z
+======================================================================
+
+Inspect the actual V24.44 production function equivalent to:
+
+    acrylic_annulus_ex()
+
+The REAL V24.44 failure evidence shows:
+
+    139 rays
+
+reaching:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT
+
+with approximately:
+
+    z = +0.154 m to +1.533 m
+
+and positive axial propagation.
+
+This is physically inconsistent with the finite CLARITAS apparatus.
+
+The current acrylic annulus is strongly suspected to consider only:
+
+    inner cylinder at Rin
+    outer cylinder at Rout
+
+while omitting its finite axial terminations.
+
+VERIFY THIS AGAINST THE ACTUAL V24.44 SOURCE.
+
+
+======================================================================
+5. RECONSTRUCT THE ACTUAL SIDEWALL TOPOLOGY
+======================================================================
+
+Determine the exact acrylic sidewall geometry from the authoritative
+CLARITAS apparatus constants.
+
+Do not invent dimensions.
+
+Determine:
+
+    lower axial extent
+    upper axial extent
+    inner radius
+    outer radius
+
+and the physical neighboring medium on every boundary.
+
+At minimum determine the topology of:
+
+    inner cylindrical face
+    outer cylindrical face
+    lower axial seam with the bottom acrylic
+    upper axial termination
+
+The annulus must be treated as a finite 3-D volume.
+
+
+======================================================================
+6. FINITE ACRYLIC ANNULUS
+======================================================================
+
+Rewrite/refactor the acrylic sidewall propagation so that while a ray is
+inside the acrylic annulus it considers ALL physically relevant candidate
+boundaries.
+
+Candidate boundaries should include, where physically applicable:
+
+    inner cylindrical face
+    outer cylindrical face
+    lower axial face/seam
+    upper axial face
+
+For each transport step:
+
+    compute all valid forward intersections
+
+    reject only topologically invalid surfaces
+
+    choose the NEAREST physical forward boundary
+
+Do not treat the sidewall as an infinite cylindrical waveguide.
+
+
+======================================================================
+7. LOWER ANNULUS / BOTTOM-DISC CONTINUITY
+======================================================================
+
+The V24.44 bottom-disc correction established that bottom acrylic and
+sidewall acrylic are contiguous.
+
+Retain this.
+
+At their shared seam:
+
+    there must NOT be:
+
+        Fresnel reflection
+        Fresnel refraction
+        fake interface event
+        RNG draw
+
+for acrylic -> acrylic.
+
+The transition must preserve:
+
+    position
+    direction
+    optical medium
+    RNG state
+    statistical weight
+
+except for a mathematically justified side-aware numerical position update.
+
+
+======================================================================
+8. UPPER ANNULUS TERMINATION
+======================================================================
+
+Determine from the REAL apparatus geometry what physically exists above the
+acrylic sidewall.
+
+Do not guess.
+
+If the upper axial boundary is:
+
+    acrylic -> air
+    acrylic -> another solid
+    acrylic -> another modeled medium
+
+then use the correct existing optical interface.
+
+Do not simply terminate the ray because z exceeds a threshold.
+
+Do not create a fictitious water interface.
+
+
+======================================================================
+9. ANNULUS BOUNCE LIMIT
+======================================================================
+
+Do NOT fix the 139 failures by increasing:
+
+    ACRYLIC_BOUNCE_LIMIT
+
+The present failures are evidence of missing finite topology.
+
+Retain the bounce limit as a fail-only engineering watchdog.
+
+After the finite-volume correction:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT must be 0
+
+in the mandatory production qualification.
+
+
+======================================================================
+10. ANNULUS DETERMINISTIC TESTS
+======================================================================
+
+Add deterministic tests exercising the ACTUAL shared/production annulus code.
+
+At minimum include rays:
+
+    moving upward inside annulus
+    moving downward inside annulus
+    moving radially inward
+    moving radially outward
+    oblique/TIR-prone trajectories
+    near the lower seam
+    near the upper termination
+    near Rin
+    near Rout
+
+Verify:
+
+    correct nearest surface
+    correct physical next medium
+    correct Fresnel/no-Fresnel decision
+    no infinite-z propagation
+    no fictitious acrylic-acrylic interface
+    no missing boundary
+
+
+======================================================================
+11. RANDOMIZED FINITE-ANNULUS STRESS
+======================================================================
+
+Add a substantial randomized validation of the finite acrylic annulus.
+
+Use preferably at least:
+
+    100000 states
+
+unless the architecture justifies a larger value.
+
+Generate valid states throughout the acrylic annulus and compare the
+production/shared CUDA boundary result against an independent double-precision
+host geometry reference.
+
+Record:
+
+    starting position
+    direction
+    expected boundary
+    actual boundary
+    expected distance
+    actual distance
+    expected medium
+    actual medium
+    classification mismatch
+    distance error
+
+Require:
+
+    zero topology/classification mismatches.
+
+
+======================================================================
+12. DEFECT B:
+    41 WATER_OUTSIDE_INNER_RADIUS FAILURES
+======================================================================
+
+The second V24.44 production failure population is:
+
+    41 rays
+
+with:
+
+    INVALID_MEDIUM_STATE
+
+and:
+
+    WATER_OUTSIDE_INNER_RADIUS
+
+These are not all negligible roundoff excursions.
+
+The observed radial overshoot beyond the water radius is approximately:
+
+    0.15 micrometres
+        to
+    39.83 micrometres
+
+Approximately:
+
+    38 / 41
+
+are travelling radially outward when the invalid state is detected.
+
+VERIFY THESE VALUES FROM THE REAL V24.44 RESULT FILES.
+
+
+======================================================================
+13. PRIMARY PARTICLE-OVERLAP DIAGNOSIS
+======================================================================
+
+Inspect the V24.44 water transport and particle-interaction sequence.
+
+A likely mechanism is:
+
+    bulk particle collision sampled while ray is close to the wall
+
+        -> finite geometric sphere interaction selected
+
+        -> sphere_fresnel_interaction_3d_ex() or equivalent
+
+        -> ray traverses a finite internal sphere chord
+
+        -> global x/y/z are advanced through the sphere
+
+        -> resulting ray endpoint is outside Rin
+
+        -> code still classifies the ray as water
+
+        -> next iteration detects WATER_OUTSIDE_INNER_RADIUS
+
+The loess PSD contains particles large enough for chord lengths of tens or
+hundreds of micrometres.
+
+This diagnosis is strongly supported but was NOT fully proven by the V24.44
+failure snapshots.
+
+DO NOT SIMPLY ASSUME IT.
+
+V24.45 must first make it directly observable.
+
+
+======================================================================
+14. EXTEND FAILURE SNAPSHOTS FOR PARTICLE EVENTS
+======================================================================
+
+For WATER_OUTSIDE_INNER_RADIUS and related medium-state failures, record the
+immediately preceding particle interaction information.
+
+At minimum capture, where applicable:
+
+    ray_id
+    particle event occurred?
+    particle bin/index
+    particle diameter
+    particle radius
+    particle type/shape
+    particle center x,y,z
+    particle entry point x,y,z
+    particle exit point x,y,z
+    pre-particle ray position
+    post-particle ray position
+    direction before particle
+    direction after particle
+    distance from particle center to nearest apparatus boundary
+    sphere/wall overlap amount
+    water-wall signed radial clearance before event
+    water-wall signed radial clearance after event
+    particle interaction order/subcode
+
+This instrumentation is compulsory.
+
+
+======================================================================
+15. PROVE OR DISPROVE PARTICLE/WALL OVERLAP
+======================================================================
+
+Using the real production path, determine whether each invalid-water state
+was created by a particle whose finite geometric volume overlaps the acrylic
+cell wall or another apparatus solid boundary.
+
+Add a specific diagnostic classification such as:
+
+    PARTICLE_PLACEMENT_OVERLAPS_CELL_BOUNDARY
+
+if that is confirmed.
+
+Do not collapse it into INVALID_MEDIUM_STATE.
+
+
+======================================================================
+16. FINITE PARTICLE CENTERS CANNOT OCCUPY SOLID WALL VOLUME
+======================================================================
+
+If the diagnosis is confirmed, enforce physically valid finite-particle
+placement.
+
+A finite spherical/spheroidal sediment particle whose center is in the water
+must not geometrically overlap the acrylic vessel wall unless the model
+explicitly includes particle-wall contact/penetration physics.
+
+CLARITAS currently does not appear to model sediment embedded in acrylic.
+
+Therefore candidate particle geometry must remain within the physically
+accessible water domain.
+
+
+======================================================================
+17. PRESERVE BULK V24.29 EVENT-RATE PHYSICS
+======================================================================
+
+THIS IS CRITICAL.
+
+Do NOT “fix” near-wall particles by arbitrarily reducing:
+
+    concentration
+    Qsca
+    event rate
+    PSD
+    particle radius
+    scattering cross-section
+
+The V24.29 exact-Mie bulk event-rate process remains frozen.
+
+Near a wall, however, the finite geometric placement constraint means some
+bulk collision proposals may correspond to physically inaccessible particle
+centers.
+
+If mathematically appropriate, treat the existing bulk process as a
+majorant/proposal process near boundaries and classify inaccessible
+particle placements as:
+
+    null collisions
+
+This is potentially acceptable because it preserves the frozen bulk proposal
+rate while enforcing finite-volume geometry.
+
+BUT YOU MUST VERIFY THE EXACT CURRENT EVENT GEOMETRY BEFORE IMPLEMENTING THIS.
+
+
+======================================================================
+18. NULL-COLLISION REQUIREMENTS
+======================================================================
+
+If a null-collision treatment is used:
+
+    it must be mathematically justified
+
+    it must not alter the accepted collision physics in the bulk
+
+    it must not count as absorption
+
+    it must not count as escape
+
+    it must not count as numerical failure
+
+    it must not change ray direction
+
+    it must not change ray position except for the normal sampled transport
+    progression implied by the event process
+
+    it must not draw unrelated Fresnel/microsurface RNG values
+
+    it must preserve stochastic consistency
+
+Record:
+
+    proposed particle collisions
+    accepted physical particle collisions
+    rejected inaccessible/null collisions
+
+for validation.
+
+
+======================================================================
+19. DO NOT BLINDLY REJECT PARTICLES AFTER FULL INTERACTION
+======================================================================
+
+Do not allow the particle interaction to happen and then simply discard the
+result if it crosses the wall.
+
+The geometry validity must be determined at the correct stage of the
+collision/placement process.
+
+The accepted particle itself must be physically placeable.
+
+
+======================================================================
+20. DO NOT SNAP PARTICLE EXIT POINTS BACK INTO WATER
+======================================================================
+
+Absolutely do NOT fix:
+
+    WATER_OUTSIDE_INNER_RADIUS
+
+by setting:
+
+    r = Rin - epsilon
+
+after the particle event.
+
+That would hide the invalid finite-particle geometry and alter transport.
+
+Prevent the impossible event instead.
+
+
+======================================================================
+21. DO NOT SHRINK LARGE PARTICLES NEAR THE WALL
+======================================================================
+
+Do NOT clip:
+
+    particle radius
+    particle chord
+    particle diameter
+
+to fit the water volume.
+
+The PSD and particle geometry must remain physical.
+
+An impossible placement should be handled through the event/placement model,
+not by changing the particle itself.
+
+
+======================================================================
+22. ACCOUNT FOR ALL RELEVANT APPARATUS BOUNDARIES
+======================================================================
+
+Do not check only the cylindrical sidewall if a finite particle can overlap:
+
+    bottom acrylic
+    top/free-surface geometry
+    sidewall
+    another solid apparatus element
+
+The exact exclusion condition must follow the real apparatus topology.
+
+For the current 41 failures, sidewall overlap is expected to dominate, but
+the implementation must be geometrically coherent.
+
+
+======================================================================
+23. PARTICLE-PLACEMENT DETERMINISTIC TESTS
+======================================================================
+
+Add deterministic tests for finite particles with centers:
+
+    well inside the water
+    exactly one radius inside the wall
+    slightly more than one radius inside
+    slightly less than one radius inside
+    near bottom acrylic
+    near relevant seams
+
+For several PSD particle sizes including:
+
+    small
+    median
+    large
+    maximum/near-maximum
+
+Require:
+
+    physically valid placement accepted
+    overlapping placement rejected/null as appropriate
+    bulk interior placement unchanged
+
+
+======================================================================
+24. RANDOMIZED PARTICLE/WALL STRESS
+======================================================================
+
+Add a substantial randomized stress test.
+
+Generate finite particles near the cell wall using actual representative PSD
+radii.
+
+Use at least:
+
+    100000
+
+candidate placements if practical.
+
+Compare CUDA/production acceptance against an independent double-precision
+host geometric reference.
+
+Record:
+
+    radius
+    center position
+    wall clearance
+    expected accessible
+    actual accessible
+    mismatch
+
+Require:
+
+    zero accessibility-classification mismatches.
+
+
+======================================================================
+25. BULK-INVARIANCE TEST
+======================================================================
+
+Prove that the new boundary-aware finite-particle logic does NOT alter
+particle interactions well away from apparatus boundaries.
+
+Construct a test region where:
+
+    distance to every relevant apparatus boundary >> particle radius
+
+Require V24.45 to match V24.44 production behavior for:
+
+    event acceptance
+    particle geometry
+    scattering inputs
+    rough-boundary physics
+
+to the appropriate deterministic/statistical standard.
+
+
+======================================================================
+26. NEAR-WALL EVENT-RATE / NULL-COLLISION AUDIT
+======================================================================
+
+If null collisions are introduced, add an audit showing:
+
+    bulk proposal process unchanged
+
+    accepted fraction near wall corresponds to geometrically accessible
+    particle placements
+
+    no arbitrary empirical factor is introduced
+
+Document the exact statistical reasoning.
+
+
+======================================================================
+27. RETAIN V24.44 BOTTOM-DISC FIXES
+======================================================================
+
+Do not regress:
+
+    finite bottom acrylic
+    radial aperture classification
+    contiguous bottom-disc/sidewall acrylic
+    outer bottom-disc edge
+    sub-EPS_F valid cylinder hits
+    intersection-vs-offset separation
+
+The V24.44 result demonstrated that:
+
+    WATER_BOUNDARY_NO_INTERSECTION = 0
+
+Retain this success.
+
+
+======================================================================
+28. RETAIN NEAR-BOUNDARY INTERSECTION FIX
+======================================================================
+
+Keep the V24.44 state-aware cell-cylinder intersection behavior.
+
+Do NOT restore a generic rule equivalent to:
+
+    t > EPS_F
+
+for physical root validity.
+
+Continue separating:
+
+    valid physical intersection
+
+from:
+
+    post-interface offset / self-hit suppression.
+
+
+======================================================================
+29. PRESERVE THE SUCCESSFUL SMITH-BECKMANN PHYSICS
+======================================================================
+
+The rough-particle physics is now a frozen successful subsystem.
+
+Retain:
+
+    Smith-Beckmann dielectric microsurface random walk
+    stable Smith Lambda
+    log-domain Smith height sampling
+    direct-double ultra-grazing VNDF support
+    signed/full-incidence VNDF
+    physical multiple scattering
+    physical microsurface escape
+    reflection/refraction
+    stable Snell handling
+    k=0
+    25-degree RMS roughness
+
+Do NOT alter this code unless a completely independent proven defect is
+found.
+
+Prefer byte-identical preservation after version-label normalization.
+
+
+======================================================================
+30. RETAIN ALL EXISTING BOUNDARY GPU GATES
+======================================================================
+
+Retain:
+
+    deterministic optics
+    Smith Lambda
+    randomized height stress
+    signed VNDF
+    ultra-grazing VNDF
+    full-sphere VNDF
+    VNDF distribution
+    equal-index
+    forced-inside
+    smooth limit
+    probability conservation
+    watchdog-zero validation
+    complete-kernel reciprocity
+    cross-interface reciprocity
+    legacy identity
+    all historical known-bad regressions
+
+
+======================================================================
+31. RETAIN 66-BIN RECIPROCITY EXACTLY
+======================================================================
+
+Retain:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+Total:
+
+    66
+
+Retain the exact failure criterion:
+
+    relative discrepancy > 1%
+
+AND:
+
+    >= 5 sigma
+
+Do NOT weaken this.
+
+
+======================================================================
+32. RETAIN CROSS-INTERFACE TESTS
+======================================================================
+
+Retain for both materials:
+
+    outside ordinary
+    outside near-critical
+    TIR near-critical
+    TIR grazing
+
+
+======================================================================
+33. V24.45 GEOMETRY VALIDATION LAYER
+======================================================================
+
+Extend the V24.44 geometry validation with new tests for:
+
+    finite annulus axial termination
+    annulus lower seam
+    annulus upper boundary
+    annulus nearest-surface selection
+    annulus TIR paths
+    finite-particle accessibility
+    particle/wall overlap
+    bulk particle invariance
+    null-collision correctness if used
+
+Keep existing:
+
+    bottom-disc deterministic tests
+    bottom-disc randomized tests
+    near-cylinder-boundary tests
+    seam/corner tests
+    self-hit suppression tests
+
+
+======================================================================
+34. EXACT PRODUCTION QUALIFICATION REMAINS COMPULSORY
+======================================================================
+
+The mandatory real production qualification remains EXACTLY:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+Do NOT reduce it.
+
+V24.44 baseline:
+
+    total failed rays:
+        180
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT:
+        139
+
+    WATER_OUTSIDE_INNER_RADIUS:
+        41
+
+V24.45 requires:
+
+    0 total failed rays
+
+
+======================================================================
+35. SPECIFIC PRODUCTION SUCCESS CONDITIONS
+======================================================================
+
+Require all of these to be zero:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT
+
+    ACRYLIC_BOUNCE_LIMIT
+
+    INVALID_MEDIUM_STATE
+
+    WATER_OUTSIDE_INNER_RADIUS
+
+    WATER_BOUNDARY_NO_INTERSECTION
+
+    WATER_NO_BOUNDARY
+
+    particle overlap numerical failures
+
+    microsurface numerical failures
+
+    geometry failures
+
+    non-finite failures
+
+    watchdog failures
+
+    trace iteration failures
+
+    all other production failure codes
+
+Count closure must also be exact.
+
+
+======================================================================
+36. CROSS-CASE PRE-AUTHORIZATION INTEGRITY MATRIX
+======================================================================
+
+The V24.44 experience shows that one qualification configuration alone may
+not expose every apparatus path.
+
+Therefore V24.45 SHOULD add a compulsory pre-authorization integrity matrix
+across the remaining canonical campaign cases.
+
+Use the real production trace kernel.
+
+Do NOT finalize scientific sediment outputs.
+
+At minimum run:
+
+    the exact 1,000,000-ray loess 0.5 g/L regression
+
+PLUS:
+
+    each other canonical campaign case at 100000 rays
+
+unless existing campaign cases are fewer/different than expected.
+
+For every integrity-smoke case require:
+
+    zero production failures
+    zero watchdogs
+    zero non-finite states
+
+This matrix is for execution integrity only.
+
+Do NOT use detector response or sediment results for tuning.
+
+
+======================================================================
+37. AUTHORIZATION SEQUENCE
+======================================================================
+
+The release authorization sequence must remain:
+
+    host/package validation
+        |
+        v
+    boundary GPU validation
+        |
+        v
+    geometry GPU validation
+        |
+        v
+    exact production qualification
+        |
+        v
+    cross-case production integrity matrix
+        |
+        v
+    ALL ZERO FAILURES?
+        |
+        +--- NO ---> write diagnostics
+        |            no receipt
+        |            no H170 campaign
+        |
+        +--- YES ---> authorization receipt
+                         |
+                         v
+                     H170 campaign
+
+Boundary validation alone must NEVER authorize the campaign.
+
+
+======================================================================
+38. AUTHORIZATION RECEIPT
+======================================================================
+
+The authorization receipt must include:
+
+    release version
+
+    production core hash
+    CUDA source hash
+    validation source hash
+    geometry-validation source hash
+    production-qualification source hash
+    configuration hash
+
+    exact qualification:
+        material
+        concentration
+        n-rays
+        seed
+        failure count
+
+    cross-case integrity matrix summary
+
+    annulus geometry result
+
+    particle-placement result
+
+    watchdog count
+
+Campaign startup must verify the receipt against current package files.
+
+
+======================================================================
+39. FAILURE DIAGNOSTICS MUST PRECEDE ABORT
+======================================================================
+
+Retain the V24.43/V24.44 behavior:
+
+    simulate
+    collect diagnostics
+    write diagnostics
+    evaluate validity
+    then abort if invalid
+
+Do not lose failure evidence.
+
+Do not finalize invalid scientific outputs.
+
+
+======================================================================
+40. CLEAN EXPECTED-FAILURE UX
+======================================================================
+
+Expected qualification failures should produce a concise report such as:
+
+    FAIL GPU production qualification
+    case: loess 0.5 g/L
+    rays: 1000000
+
+    failed rays: N
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT: N
+    WATER_OUTSIDE_INNER_RADIUS: N
+
+    diagnostics:
+        results/_production_qualification/
+
+    sediment campaign NOT authorized
+
+Then exit non-zero cleanly.
+
+Unexpected programming errors should still show a traceback.
+
+
+======================================================================
+41. V24.44 KNOWN-BAD REGRESSION
+======================================================================
+
+Add V24.44 as an isolated historical regression.
+
+Retain the REAL baseline:
+
+    original V24.43:
+        WATER_BOUNDARY_NO_INTERSECTION = 466
+
+    V24.44:
+        WATER_BOUNDARY_NO_INTERSECTION = 0
+
+but:
+
+        total production failures = 180
+
+split:
+
+        ACRYLIC_ANNULUS_BOUNCE_LIMIT = 139
+
+        WATER_OUTSIDE_INNER_RADIUS = 41
+
+The V24.44 regression must demonstrate:
+
+    infinite-z acrylic-annulus behavior
+
+and where possible:
+
+    finite-particle near-wall invalid-medium behavior
+
+Historical code must remain isolated from production.
+
+
+======================================================================
+42. RETAIN ALL PRIOR KNOWN-BAD REGRESSIONS
+======================================================================
+
+Retain isolated regressions for:
+
+    V24.36.12
+    V24.37
+    V24.38
+    V24.39
+    V24.40
+    V24.41.1
+    V24.42
+    V24.43
+    V24.44
+
+Do not allow historical code into V24.45 production.
+
+
+======================================================================
+43. RELEASE DECISION FIELDS
+======================================================================
+
+At minimum include factual fields equivalent to:
+
+    gpu_acquisition_pass
+
+    deterministic_optics_pass
+    smith_lambda_pass
+    randomized_height_stress_pass
+    signed_vndf_pass
+    ultra_grazing_vndf_pass
+    full_sphere_vndf_stress_pass
+    equal_index_pass
+    forced_inside_second_hit_pass
+    smooth_limit_pass
+    corrected_kernel_reciprocity_pass
+    all_qsca_ge_1_bins_pass
+    cross_interface_reciprocity_pass
+
+    finite_bottom_disc_geometry_pass
+    near_boundary_cylinder_pass
+
+    finite_acrylic_annulus_pass
+    annulus_axial_boundary_pass
+    annulus_lower_seam_pass
+    annulus_upper_boundary_pass
+    annulus_randomized_stress_pass
+    annulus_bounce_limit_zero
+
+    particle_boundary_diagnostics_pass
+    particle_wall_overlap_classification_pass
+    finite_particle_accessibility_pass
+    particle_bulk_invariance_pass
+    particle_null_collision_pass
+
+    production_transport_qualification_run
+    production_transport_qualification_pass
+    production_qualification_rays
+    production_qualification_failure_count
+
+    production_acrylic_annulus_failures_zero
+    production_invalid_medium_zero
+    production_water_outside_radius_zero
+    production_water_no_boundary_zero
+    production_microsurface_failures_zero
+    production_geometry_failures_zero
+    production_nonfinite_zero
+    production_watchdogs_zero
+    production_failure_codes_all_zero
+
+    cross_case_integrity_matrix_run
+    cross_case_integrity_matrix_pass
+
+    production_failure_diagnostics_written
+
+    legacy_identity_pass
+
+    known_bad_v24_36_rejected
+    known_bad_v24_37_rejected
+    known_bad_v24_38_rejected
+    known_bad_v24_39_rejected
+    known_bad_v24_40_rejected
+    known_bad_v24_41_rejected
+    known_bad_v24_42_rejected
+    known_bad_v24_43_rejected
+    known_bad_v24_44_rejected
+
+    validated_physics_correction
+    production_transport_validated
+    sediment_campaign_authorized
+
+
+======================================================================
+44. AUTHORIZATION RULE
+======================================================================
+
+Set:
+
+    sediment_campaign_authorized = true
+
+ONLY IF:
+
+    every compulsory boundary GPU gate passes
+
+AND:
+
+    every geometry gate passes
+
+AND:
+
+    exact 1,000,000-ray production qualification passes
+
+AND:
+
+    cross-case integrity matrix passes
+
+AND:
+
+    production failure count = 0
+
+AND:
+
+    all specific production failure-code counts = 0
+
+AND:
+
+    all watchdogs = 0
+
+AND:
+
+    package/hash/receipt integrity checks pass.
+
+Anything else:
+
+    sediment_campaign_authorized = false
+
+
+======================================================================
+45. PRESERVE ALL UNRELATED PHYSICS
+======================================================================
+
+Outside the explicitly justified V24.45 apparatus/particle-boundary changes,
+preserve:
+
+    V24.29 exact-Mie event-rate physics
+    Qsca<1 behavior
+    exact Qsca=1 boundary
+    Mie data
+    PSDs
+    source geometry
+    apparatus dimensions
+    detector geometry
+    detector angular response
+    detector scoring
+    SFH213 response
+    optical constants
+    water refractive index
+    particle refractive indices
+    k=0
+    25-degree roughness
+    vortex model
+    wave model
+    sediment concentration definitions
+    H170 cases
+    event codes
+    source/detector symmetry
+
+DO NOT TUNE H170.
+
+DO NOT TUNE ROUGHNESS.
+
+DO NOT ALTER PSDs.
+
+
+======================================================================
+46. CUDA / PYTHON ABI VALIDATION
+======================================================================
+
+Retain the existing CUDA/Python ABI audit.
+
+If any kernel signature changes:
+
+    update the Python launch tuple
+    audit argument count automatically
+    report the counts
+
+Ensure:
+
+    production CUDA syntax/scope passes
+    validation CUDA syntax/scope passes
+    geometry CUDA syntax/scope passes
+    no bare NAN
+    no bare INFINITY
+    no stale executable ABI
+
+
+======================================================================
+47. HOST AUDIT OF ANNULUS TOPOLOGY
+======================================================================
+
+Add adversarial host checks proving:
+
+    acrylic annulus has finite axial extent
+
+    upper/lower boundaries are considered
+
+    no infinite-cylinder-only annulus remains
+
+    lower acrylic continuity exists
+
+    no fake acrylic-acrylic Fresnel event exists
+
+    annulus bounce limit remains fail-only
+
+Where practical, detect the old V24.44 infinite-annulus source pattern.
+
+
+======================================================================
+48. HOST AUDIT OF PARTICLE-BOUNDARY LOGIC
+======================================================================
+
+Add checks verifying:
+
+    finite particle radius is considered near apparatus boundaries
+
+    impossible placements cannot produce water states outside Rin
+
+    no post-event radial snapping exists
+
+    particle radius is not clipped
+
+    concentration is not tuned
+
+    Qsca is not tuned
+
+    PSD is not tuned
+
+    bulk event proposal physics remains frozen
+
+    null-collision logic, if used, is explicit and documented
+
+
+======================================================================
+49. VERSIONING
+======================================================================
+
+Up-version consistently to:
+
+    V24.45.0
+
+Canonical release directory:
+
+    CLARITAS_V24_45
+
+Expected equivalents include:
+
+    claritas_tardiis_core_v24_45.py
+    claritas_v24_45_config.json
+
+    v24_45_model.py
+    v24_45_release.py
+    v24_45_validation.py
+    v24_45_geometry_validation.py
+    v24_45_legacy_core.py
+    v24_45_production_qualification.py
+
+    preflight_v24_45_package.py
+    verify_v24_45_corrected_boundary.py
+    summarize_v24_45_corrected_boundary.py
+    plot_v24_45_corrected_boundary.py
+
+    run_v24_45_case.py
+    run_v24_45_campaign.py
+
+and all architecture-required files.
+
+No stale V24.44 executable module may control V24.45 production.
+
+
+======================================================================
+50. RESULTS ORGANIZATION
+======================================================================
+
+Use clear output organization such as:
+
+    results/
+        _boundary_validation/
+        _geometry_validation/
+        _production_qualification/
+        _integrity_matrix/
+        campaign outputs...
+
+Geometry outputs should include equivalents of:
+
+    v24_45_annulus_deterministic.csv
+    v24_45_annulus_random_stress.csv
+    v24_45_particle_wall_deterministic.csv
+    v24_45_particle_wall_random_stress.csv
+    v24_45_particle_bulk_invariance.csv
+    v24_45_particle_null_collision_summary.csv
+
+Production diagnostics should retain:
+
+    failure codes
+    subcodes
+    failed ray IDs
+    failure samples
+
+
+======================================================================
+51. DOCUMENTATION
+======================================================================
+
+Update at minimum:
+
+    README.md
+    RELEASE_NOTES.txt
+    PACKAGE_MANIFEST.json
+    SHA256SUMS.txt
+
+and relevant physics/geometry/architecture audit documents.
+
+Document clearly:
+
+    V24.43:
+        466 failures
+
+    V24.44:
+        180 failures
+
+    V24.44:
+        WATER_BOUNDARY_NO_INTERSECTION reduced to zero
+
+    V24.44 remaining:
+        139 acrylic annulus bounce-limit failures
+        41 WATER_OUTSIDE_INNER_RADIUS failures
+
+    infinite-z annulus diagnosis
+
+    finite-annulus correction
+
+    particle/wall overlap diagnosis and evidence
+
+    exact correction used for finite particle placement
+
+    null-collision mathematics if used
+
+    preservation of V24.29 bulk event-rate physics
+
+    preservation of Smith-Beckmann physics
+
+    fail-closed authorization
+
+
+======================================================================
+52. HOST PREFLIGHT
+======================================================================
+
+Retain all established host checks:
+
+    required files
+    manifest integrity
+    hashes
+    Python in-memory compilation
+    no package-tree pyc dependency
+    non-writable __pycache__
+    NumPy compatibility
+    no np.trapz dependency
+    no bare NVRTC-hostile NAN
+    no bare NVRTC-hostile INFINITY
+    V24.29 physics freeze
+    k=0
+    25-degree roughness
+    Smith-Beckmann freeze
+    no support resampling
+    no invalid-side rejection
+    no VNDF tail truncation
+    no geometric-normal fallback
+    no numerical-error-as-escape
+    V24.44 bottom-disc fix retained
+    V24.44 sub-EPS intersection fix retained
+    no H170 tuning
+    no empirical loss
+    sys.executable subprocesses
+    no nested Bash
+    Windows path budget
+    CUDA syntax/scope surrogate
+    CUDA/Python ABI audit
+    production failure-code coverage
+    diagnostics-before-abort
+    qualification-before-receipt
+
+Add:
+
+    finite-annulus audit
+    upper/lower annulus boundary audit
+    particle-boundary accessibility audit
+    no-particle-radius-clipping audit
+    bulk-event-rate freeze audit
+    V24.44 regression presence
+
+
+======================================================================
+53. GPU AVAILABILITY RULE
+======================================================================
+
+If genuine compatible CUDA hardware is available:
+
+    run:
+
+        boundary GPU validation
+
+        geometry GPU validation
+
+        exact 1,000,000-ray production qualification
+
+        cross-case integrity matrix
+
+If a production failure occurs:
+
+    inspect the detailed failure diagnostics
+
+Only make an additional correction if:
+
+    the failure mechanism is clearly demonstrated
+
+Do not guess.
+
+Do not tune H170.
+
+Do not weaken validation.
+
+If everything passes:
+
+    production_transport_validated = true
+    sediment_campaign_authorized = true
+
+If CUDA is unavailable:
+
+    do not invent results
+
+    production_transport_validated = false
+    sediment_campaign_authorized = false
+
+BUT STILL BUILD AND RETURN THE ZIP.
+
+
+======================================================================
+54. PACKAGE FORMAT — ABSOLUTELY DO NOT CHANGE
+======================================================================
+
+USE THE ORIGINAL CLARITAS RELEASE FORMAT.
+
+THE ZIP MUST BE:
+
+    CLARITAS_V24_45.zip
+
+AND ITS CONTENTS MUST BE:
+
+    CLARITAS_V24_45.zip
+        |
+        +-- CLARITAS_V24_45/
+              |
+              +-- preflight_v24_45_package.py
+              +-- verify_v24_45_corrected_boundary.py
+              +-- run_v24_45_campaign.py
+              +-- ...
+
+EXACTLY ONE TOP-LEVEL RELEASE FOLDER.
+
+DO NOT CREATE A FLAT ZIP.
+
+DO NOT CREATE:
+
+    CLARITAS_V24_45_FLAT.zip
+
+DO NOT CREATE MULTIPLE VARIANTS.
+
+DO NOT DOUBLE-NEST:
+
+    CLARITAS_V24_45/
+        CLARITAS_V24_45/
+
+
+======================================================================
+55. COMPULSORY FINAL ZIP WORKFLOW
+======================================================================
+
+THIS SECTION IS MANDATORY.
+
+YOU MUST COMPLETE ALL OF THESE STEPS BEFORE ANSWERING.
+
+1. Build:
+
+       CLARITAS_V24_45/
+
+2. Run:
+
+       python preflight_v24_45_package.py
+
+3. Run the COMPLETE host verifier.
+
+4. Run CUDA tests if genuine CUDA hardware is available.
+
+5. Update documentation.
+
+6. Generate/update:
+
+       PACKAGE_MANIFEST.json
+
+7. Generate/update:
+
+       SHA256SUMS.txt
+
+8. Remove all unintended:
+
+       results/
+       authorization receipts
+       __pycache__/
+       *.pyc
+       temporary compiler files
+       development scratch files
+
+9. Create:
+
+       CLARITAS_V24_45.zip
+
+10. VERIFY THAT ITS STRUCTURE IS EXACTLY:
+
+       CLARITAS_V24_45.zip
+           CLARITAS_V24_45/
+               files...
+
+11. Run ZIP compressed-data integrity checking.
+
+12. Extract THAT EXACT ZIP into a brand-new empty test directory.
+
+13. Confirm the extraction contains exactly one top-level:
+
+       CLARITAS_V24_45/
+
+14. Change into the extracted:
+
+       CLARITAS_V24_45/
+
+15. Run:
+
+       python preflight_v24_45_package.py
+
+16. Run the COMPLETE HOST VERIFIER from that extracted package.
+
+17. Verify EVERY ENTRY in:
+
+       SHA256SUMS.txt
+
+18. Confirm no files outside the ZIP are needed.
+
+19. Where practical, repeat host validation with a pre-existing
+    non-writable:
+
+       __pycache__
+
+20. Calculate SHA-256 of the FINAL:
+
+       CLARITAS_V24_45.zip
+
+21. ATTACH THAT EXACT ZIP TO THE FINAL RESPONSE.
+
+YOU ARE NOT ALLOWED TO ANSWER THE USER BEFORE STEP 21 IS COMPLETE.
+
+
+======================================================================
+56. REQUIRED RUN COMMANDS
+======================================================================
+
+YOUR FINAL RESPONSE MUST CONTAIN EXACTLY USABLE GIT BASH COMMANDS:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_45"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_45_package.py && \
+    python verify_v24_45_corrected_boundary.py && \
+    python run_v24_45_campaign.py
+
+
+======================================================================
+57. DEFINITION OF DONE
+======================================================================
+
+The task is complete ONLY when ALL of these are true:
+
+    V24.45.0 implemented
+
+    V24.44 used as direct production base
+
+    V24.44 Smith-Beckmann physics preserved
+
+    V24.44 bottom-disc geometry preserved
+
+    V24.44 near-boundary cylinder fix preserved
+
+    acrylic sidewall is finite in z
+
+    real annulus upper/lower boundaries handled
+
+    acrylic continuity handled correctly
+
+    annulus cannot propagate metres beyond apparatus
+
+    annulus bounce-limit production failures eliminated
+
+    particle-event diagnostics include preceding particle geometry
+
+    WATER_OUTSIDE_INNER_RADIUS mechanism proven or disproven
+
+    if proven, physically impossible finite-particle placement prevented
+
+    bulk V24.29 event-rate physics preserved
+
+    no particle radius clipping
+
+    no post-event geometry snapping
+
+    null-collision process, if used, is physically/statistically justified
+
+    deterministic annulus tests pass
+
+    randomized annulus tests pass
+
+    deterministic particle-boundary tests pass
+
+    randomized particle-boundary tests pass
+
+    bulk invariance tests pass
+
+    all existing boundary physics tests retained
+
+    all 66 reciprocity bins retained
+
+    cross-interface validation retained
+
+    exact 1,000,000-ray loess qualification retained
+
+    production qualification yields zero failures before authorization
+
+    cross-case integrity matrix passes
+
+    all watchdogs zero
+
+    all non-finite failures zero
+
+    all production failure-code counts zero
+
+    authorization remains fail-closed
+
+    documentation updated
+
+    manifests updated
+
+    final ZIP tested
+
+    final ZIP clean-extracted
+
+    clean-extracted package host-tested
+
+    SHA256SUMS verified
+
+    final ZIP SHA-256 reported
+
+    CLARITAS_V24_45.zip actually attached
+
+    exact Git Bash run commands provided
+
+
+======================================================================
+58. FINAL RESPONSE FORMAT
+======================================================================
+
+The final response MUST report:
+
+    what V24.45 changed
+
+    confirmation that Smith-Beckmann physics was retained
+
+    confirmation V24.44 bottom-disc/sub-EPS fixes were retained
+
+    finite-annulus correction
+
+    annulus axial-boundary handling
+
+    particle-wall diagnostic result
+
+    particle-boundary correction actually implemented
+
+    whether null collisions were used and why
+
+    host validation status
+
+    GPU boundary validation status if actually run
+
+    geometry validation status if actually run
+
+    exact production qualification status if actually run
+
+    production failed-ray count if actually run
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT count if actually run
+
+    WATER_OUTSIDE_INNER_RADIUS count if actually run
+
+    watchdog count if actually run
+
+    66-bin reciprocity result if actually run
+
+    cross-interface result if actually run
+
+    cross-case integrity matrix result if actually run
+
+    production_transport_validated
+
+    sediment_campaign_authorized
+
+    FINAL ZIP SHA-256
+
+    AN ACTUAL DOWNLOAD LINK:
+
+        [Download CLARITAS_V24_45.zip]
+
+    exact Git Bash commands
+
+
+======================================================================
+59. ABSOLUTE NON-NEGOTIABLES
+======================================================================
+
+DO NOT:
+
+    change Smith-Beckmann physics without independent evidence
+
+    tune H170
+
+    tune 25-degree roughness
+
+    tune concentration
+
+    alter PSDs
+
+    alter exact-Mie bulk event-rate physics
+
+    increase annulus bounce limit to hide infinite topology
+
+    leave annulus infinite in z
+
+    snap invalid water rays back inside the cylinder
+
+    shrink particles to fit near walls
+
+    hide inaccessible particle placements
+
+    relabel failures as absorption
+
+    relabel failures as escape
+
+    retry failed rays until successful
+
+    ignore failed rays
+
+    weaken reciprocity criteria
+
+    reduce the 1,000,000-ray qualification
+
+    remove production failure diagnostics
+
+    authorize before complete production qualification
+
+    invent GPU validation results
+
+    claim sediment authorization without real GPU qualification
+
+    change the established ZIP format
+
+    provide a flat ZIP
+
+    provide multiple ZIP alternatives
+
+    finish without the ZIP
+
+    finish without SHA-256
+
+    finish without run commands
+
+
+======================================================================
+60. MOST IMPORTANT INSTRUCTION
+======================================================================
+
+DO NOT GIVE ME A RESPONSE SAYING THAT THE PACKAGE IS “READY TO ZIP”.
+
+DO NOT GIVE ME A RESPONSE SAYING THAT YOU “CANNOT FINISH THE PACKAGING”.
+
+DO NOT GIVE ME ONLY SOURCE CODE OR A PATCH.
+
+YOU MUST ACTUALLY CREATE:
+
+    CLARITAS_V24_45.zip
+
+YOU MUST ACTUALLY ATTACH IT.
+
+THE ARCHIVE MUST BE:
+
+    CLARITAS_V24_45.zip
+        CLARITAS_V24_45/
+            ...
+
+YOUR FINAL RESPONSE MUST INCLUDE:
+
+    [Download CLARITAS_V24_45.zip]
+
+AND:
+
+    the exact ZIP SHA-256
+
+AND:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_45"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_45_package.py && \
+    python verify_v24_45_corrected_boundary.py && \
+    python run_v24_45_campaign.py
+
+THE TASK IS NOT COMPLETE UNTIL THE ZIP IS PHYSICALLY PRESENT AND DOWNLOADABLE.

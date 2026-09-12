@@ -1,0 +1,9 @@
+Authoritative V24.43 real-GPU production qualification evidence
+===============================================================
+Qualification: loess, 0.5 g/L, 1,000,000 rays, seed 2441000.
+Failed rays: 466 (0.0466%).
+All production failure codes: WATER_BOUNDARY_NO_INTERSECTION.
+All relevant subcodes: WATER_NO_BOUNDARY.
+Microsurface failures: 0. Watchdogs: 0. Non-finite failures: 0. Geometry failures: 466.
+Derived directly from packaged failure snapshots: 464/466 outside Rin=0.0465 m while still water; 434 at z≈-0.093 m; among those bottom-plane failures 287 had Rin<r<=Rout=0.05 m and 147 had r>Rout. The two remaining inside-Rin rays had valid forward wall distances below EPS_F=2e-7 m (approximately 46.9 nm and 4.2 nm).
+The original CSV/JSON evidence is retained under references/v24_43_gpu_failure/.

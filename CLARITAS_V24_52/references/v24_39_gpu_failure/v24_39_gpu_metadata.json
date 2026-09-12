@@ -1,0 +1,23 @@
+{
+  "release": "V24.39.0",
+  "gpu_acquisition_complete": true,
+  "compile_seconds": 0.19730339999659918,
+  "samples_per_bin": 60000,
+  "coverage": {
+    "kaolin": 28,
+    "loess": 38
+  },
+  "corrected_core_cuda_sha256": "200616f0bc0f3a988c679f865341b653e6e26c3f0f7ec5186bec9f2c116abfc6",
+  "validation_cuda_sha256": "f2a5e0240c70d504d5c5ca2b8f00798a327f8859b60f9ae849927e55197685a9",
+  "roughness_deg": 25.0,
+  "k_zero": true,
+  "watchdog_reflections": 4096,
+  "microsurface_watchdog": 4096,
+  "v24_37_known_bad_rejected": true,
+  "v24_38_known_bad_rejected": true,
+  "signed_vndf_pass": true,
+  "equal_index_pass": false,
+  "inside_side_second_hit_pass": true,
+  "height_sampler_pass": true,
+  "microsurface_specific_tests_pass": false
+}

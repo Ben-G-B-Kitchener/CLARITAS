@@ -1,0 +1,5 @@
+CLARITAS V24.42 frozen successful boundary reference
+V24.42 corrected core file SHA-256: ff3b906b21861907671d08d38ec41e280d97444a0cb2ab7a044ea0ac8b30ef33
+V24.42 corrected CUDA_SRC SHA-256: 98e0be05b0798a59e88666e66b0c72795e24602d14f4573043cb908bc8961485
+Normalized Smith/Beckmann physics block SHA-256 (beckmann_tail_B through immediately before sphere_fresnel_interaction_3d; V24.42/V24.43 comment version labels normalized to V24.X): 636c0abb880a4ccea73f7bde95a045c9cdd13397649d16768a4bcd31cacb658e
+Purpose: prove V24.43 retains the successful V24.42 Smith-Lambda/log-height/signed-VNDF/direct-double-support physical implementation byte-for-byte apart from version-label comments before production failure instrumentation begins.

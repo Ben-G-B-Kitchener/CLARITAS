@@ -1,0 +1,1466 @@
+You are continuing development of my CLARITAS CUDA optical transport model.
+
+Three principles are non-negotiable:
+
+    FIX THE PROCESS, NOT THE CURVE.
+
+    NO AVOIDABLE RELEASE ERRORS.
+
+    FINISH THE COMPLETE RELEASE WORKFLOW AND DELIVER THE ZIP.
+
+Do not stop after analysis, implementation, host testing, packaging preparation,
+or a progress report.
+
+A completed task means I receive an ACTUAL DOWNLOADABLE ZIP that has been:
+
+    implemented
+    ->
+    host verified
+    ->
+    adversarially reviewed
+    ->
+    packaged
+    ->
+    ZIP integrity tested
+    ->
+    clean extracted
+    ->
+    preflighted and host verified again from the extracted copy
+    ->
+    hashed
+    ->
+    delivered with exact run commands.
+
+A message saying that the release is "almost ready" is not acceptable.
+
+======================================================================
+1. CHANGE OF DIRECTION
+======================================================================
+
+We have now done enough broad auditing.
+
+Do NOT create another sprawling diagnostic framework.
+
+Do NOT keep adding progressively wider audits.
+
+The next release has ONE narrow scientific purpose:
+
+    DETERMINE WHETHER THE COMPLETE CURRENT ROUGH + FALLBACK
+    BOUNDARY TRANSITION KERNEL VIOLATES THE PHYSICALLY CORRECT
+    RECIPROCITY / DETAILED-BALANCE RELATION.
+
+That means the whole mixed process must be tested, including:
+
+    accepted rough interactions
+    +
+    geometric-normal fallback
+
+not just the accepted rough branch in isolation.
+
+This is intended to be the final process-defect decision test.
+
+After this:
+
+    if the complete kernel is demonstrably defective:
+        move toward the smallest first-principles correction.
+
+    if the complete kernel is not demonstrably defective:
+        STOP implementation auditing.
+
+In that case, treat the remaining disagreement as a physical-model /
+missing-physics question rather than hunting indefinitely for another code bug.
+
+======================================================================
+2. TRUSTED PRODUCTION BASELINE
+======================================================================
+
+The trusted production physics baseline remains:
+
+    V24.29
+
+V24.29 contains the validated exact-Mie EVENT-RATE correction.
+
+The following remain frozen unless a genuine process defect is proven:
+
+- V24.29 event rates;
+- Qsca<1 treatment;
+- detector geometry;
+- apparatus geometry;
+- optical constants;
+- PSDs;
+- source geometry;
+- detector response;
+- k = 0 particle absorption assumption for this audit;
+- RMS Beckmann slope = 25 degrees;
+- production RNG behaviour before any explicitly changed process.
+
+Do not silently promote previous experimental angular models.
+
+======================================================================
+3. CURRENT RELEASE LINEAGE
+======================================================================
+
+The most recent package is:
+
+    V24.36.11
+
+V24.36.11 is diagnostic-only.
+
+It contains the current reciprocity/fallback diagnostic framework.
+
+The GPU run completed and produced useful results.
+
+However, the V24.36.11 verifier failed because of THREE identified
+diagnostic-integrity bugs.
+
+These must be corrected before interpreting the final reciprocity decision.
+
+======================================================================
+4. THREE KNOWN V24.36.11 AUDIT BUGS
+======================================================================
+
+BUG 1 — PROBABILITY CLOSURE DOUBLE COUNT
+
+The summarizer effectively used:
+
+    resolved =
+        entry_reflection_count
+      + escaped_count
+      + absorbed_count
+      + numerical_failure_count
+      + censored_count
+
+But:
+
+    escaped_count
+
+already includes entry-reflection histories.
+
+Therefore entry reflections were counted twice.
+
+Observed evidence:
+
+    probability_count_closure_abs_max = 2925
+
+and that exactly matched the maximum entry_reflection_count.
+
+Correct closure is:
+
+    escaped_count
+  + absorbed_count
+  + numerical_failure_count
+  + censored_count
+  == samples
+
+The underlying GPU data showed exact closure when counted correctly.
+
+Fix this.
+
+Retain a permanent regression that would fail if entry reflections are
+double-counted again.
+
+----------------------------------------------------------------------
+BUG 2 — WRONG REFRACTIVE-INDEX ORDER IN REVERSE REFLECTION TEST
+----------------------------------------------------------------------
+
+The CUDA fixed-microfacet reverse Fresnel audit incorrectly used swapped
+refractive indices for reflection:
+
+    fresnel_R_complex(co, N2, 0, N1, 0)
+
+For a reflected ray, the ray remains in the incident medium.
+
+Therefore the reversed reflection-side Fresnel evaluation should use the
+same medium pair orientation appropriate to reflection, not the
+transmission reverse convention.
+
+This produced the spurious:
+
+    reflection_grazing
+    fresnel_reverse_abs ~= 0.004779819
+
+while direction reversibility and independent CPU/BSDF reference tests
+were already effectively exact.
+
+Fix the audit.
+
+Retain reflection and transmission reverse tests separately so this
+mistake cannot recur.
+
+----------------------------------------------------------------------
+BUG 3 — OVER-STRICT TEST OF STORED FLOAT32 OUTGOING DIRECTIONS
+----------------------------------------------------------------------
+
+The V24.36.11 captured-pair verifier reconstructed local Fresnel/BSDF
+reciprocity directly from float32 directions written by CUDA.
+
+At grazing incidence, ~1e-7 directional quantisation produced artificial:
+
+    Fresnel residuals up to ~2.2e-5
+
+and:
+
+    reflection-BSDF residuals up to ~2.6e-5.
+
+When the exact deterministic reflected direction was reconstructed from:
+
+    recorded incoming vector
+    +
+    recorded microfacet normal
+
+the same 132 reflection-type pairs closed approximately to:
+
+    direction reversibility error ~6.7e-16
+    Fresnel reciprocity error      ~4.9e-14
+    BSDF reciprocity error         ~5.2e-14
+
+Therefore:
+
+do not use a quantised stored direction as the authoritative mathematical
+state for an exact reciprocity invariant when the exact direction can be
+reconstructed.
+
+Fix the verifier accordingly.
+
+Still retain the stored-direction comparison as a numerical precision
+diagnostic if useful, but do not confuse it with the physical reciprocity
+criterion.
+
+======================================================================
+5. SCIENTIFIC FINDINGS THAT MUST BE PRESERVED
+======================================================================
+
+The following results from V24.36.9 / V24.36.11 are now established enough
+to guide the final test.
+
+The old production interaction loop has an effective:
+
+    65 internal-reflection limit
+
+and reaching it produces numerical photon termination.
+
+With:
+
+    k = 0
+
+this is a genuine nonphysical probability / energy sink.
+
+However:
+
+    the 65-reflection cap is NOT the root cause of the trapped population.
+
+Diagnostic continuation to 512 reflections showed many long-lived rays
+remain trapped well beyond 65.
+
+Approximate cap-hit survival:
+
+    ~87% still trapped at 128
+    ~78% still trapped at 256
+    ~71% still trapped at 512
+
+for both kaolin and loess.
+
+======================================================================
+6. ROUGH / FALLBACK MECHANISM ALREADY OBSERVED
+======================================================================
+
+The long-lived population is strongly associated with:
+
+    rough microfacet optical normal
+        +
+    ideal spherical macro-geometry
+        +
+    geometric-normal fallback.
+
+At high internal-reflection order:
+
+    TIR fraction -> approximately 100%
+
+and:
+
+    fallback fraction -> approximately 100%.
+
+Representative trapped paths showed macro-sphere incidence such as:
+
+    ~88.7 degrees
+    ~82.8 degrees
+
+and remained trapped for hundreds of encounters.
+
+A particularly important observation was:
+
+    P(escape next bounce)
+        approximately equals
+    P(no fallback next bounce)
+
+for the high-order population.
+
+This strongly suggests fallback is maintaining the trapped macro-TIR state.
+
+======================================================================
+7. CANDIDATE ESCAPE REJECTION
+======================================================================
+
+V24.36.11 showed that once a ray is inside the macro-TIR basin,
+the rough interaction sometimes proposes a non-TIR escape.
+
+A significant fraction of these candidate escapes are rejected by the
+compatibility logic.
+
+Approximate probability-mass rejected:
+
+    kaolin: ~12.46%
+    loess:  ~12.00%
+
+Essentially all of that rejected candidate-escape probability was converted
+into:
+
+    geometric-normal TIR.
+
+This is strong evidence that fallback materially affects transport out of
+the trapped basin.
+
+But this observation ALONE is not yet sufficient to declare a reciprocity
+violation.
+
+======================================================================
+8. CURRENT MICROFACET SAMPLER
+======================================================================
+
+The current CLARITAS rough-normal sampler has been identified as:
+
+    raw Beckmann slope/NDF sampling
+    +
+    facing rejection
+
+rather than a Smith visible-normal distribution.
+
+It does not presently implement a proper incoming-direction-conditioned
+VNDF / masking-shadowing construction.
+
+The difference between the current sampler and a Smith visible-normal
+reference becomes particularly large at grazing incidence.
+
+Representative L1 differences:
+
+    |cos(theta)| = 0.02  -> ~0.408
+    |cos(theta)| = 0.05  -> ~0.398
+    |cos(theta)| = 0.10  -> ~0.376
+    |cos(theta)| = 0.20  -> ~0.317
+    |cos(theta)| = 0.40  -> ~0.157
+    |cos(theta)| = 0.60  -> ~0.023
+    |cos(theta)| = 0.80  -> ~0.0019
+    |cos(theta)| = 1.00  -> ~0
+
+This is highly relevant because trapped rays live primarily in the grazing
+incidence regime.
+
+Do not yet replace the sampler merely because VNDF looks more modern or
+more physical.
+
+The final mixed-kernel test comes first.
+
+======================================================================
+9. CURRENT ACCEPTED-ROUGH-BRANCH RECIPROCITY EVIDENCE
+======================================================================
+
+V24.36.11's accepted rough transition diagnostic showed substantial
+forward/reverse detailed-balance asymmetry.
+
+Approximate usable-pair statistics:
+
+    median relative asymmetry ~14.1%
+    maximum                 ~64.2%
+    >1% asymmetry            ~90.9% of pairs
+
+Representative categories:
+
+accepted rough escape:
+    median ~3.44%
+    mean   ~6.25%
+    max    ~46.4%
+
+accepted rough reflection:
+    median ~14.6%
+    mean   ~19.8%
+    max    ~62.1%
+
+rough reflection entering macro-TIR:
+    median ~33.7%
+    mean   ~32.8%
+    max    ~64.2%
+
+This is important evidence.
+
+However:
+
+    accepted rough branch != complete production boundary kernel.
+
+The fallback contribution must be included before making the final
+process-defect decision.
+
+======================================================================
+10. THE ONLY NEW SCIENTIFIC QUESTION
+======================================================================
+
+Answer this:
+
+    DOES THE COMPLETE MIXED ROUGH + FALLBACK TRANSITION KERNEL
+    SATISFY THE CORRECT RECIPROCITY / DETAILED-BALANCE CONDITION?
+
+This is the entire purpose of the next diagnostic.
+
+Do not broaden the scope unless required to answer this exact question.
+
+======================================================================
+11. FORMALISE THE COMPLETE TRANSITION KERNEL
+======================================================================
+
+Write the process explicitly.
+
+For an incident boundary state x:
+
+    x
+      ->
+    sample rough normal m
+      ->
+    evaluate rough Fresnel/TIR branch
+      ->
+    propose outgoing state y_r
+      ->
+    macro-geometry compatibility test
+
+Then either:
+
+    compatible:
+        y = y_r
+
+or:
+
+    incompatible:
+        apply geometric fallback
+        ->
+        y = y_g
+
+The final transition kernel is therefore a MIXTURE of:
+
+    accepted continuous rough transitions
+
+and:
+
+    fallback-induced transitions.
+
+The reciprocity analysis must apply to:
+
+    the FINAL transition probability
+
+not only the rough proposal probability.
+
+======================================================================
+12. INCLUDE THE DISCRETE FALLBACK CONTRIBUTION
+======================================================================
+
+This is the missing piece.
+
+The compatibility failure maps a region of rough-normal proposal space onto
+a fallback state or branch.
+
+Therefore the final transition probability may include probability mass of
+the form:
+
+    integral over all rejected rough proposals
+    that map onto the same fallback transition.
+
+Do not test only:
+
+    p(m_forward)
+        versus
+    p(m_reverse)
+
+for accepted rough normals.
+
+Instead derive or numerically estimate the probability measure of the
+complete state transition:
+
+    K(x -> y)
+
+including both:
+
+    accepted rough contribution
+
+and:
+
+    rejected-proposal -> fallback contribution.
+
+======================================================================
+13. USE THE CORRECT STATE MEASURE
+======================================================================
+
+Do not use naive:
+
+    P(forward) == P(reverse)
+
+unless that is mathematically appropriate.
+
+Use the correct optical equilibrium / reciprocity measure for the chosen
+state representation.
+
+Depending on representation this may include:
+
+    n^2
+    projected cosine
+    projected solid angle
+    radiance / étendue weighting
+    microfacet Jacobian terms.
+
+Explicitly document the relation used.
+
+For example, formulate the invariant generically as something like:
+
+    pi(x) K(x -> y)
+        =
+    pi(y*) K(y* -> x*)
+
+where:
+
+    pi
+
+is the appropriate equilibrium state measure and:
+
+    *
+
+denotes path reversal.
+
+Do not hard-code that symbolic expression as truth without deriving the
+correct pi for the implemented state coordinates.
+
+======================================================================
+14. FIXED-MICROFACET LOCAL OPTICS REMAIN A HARD BASELINE
+======================================================================
+
+Before testing the mixed stochastic kernel, retain the deterministic
+fixed-microfacet tests.
+
+They must demonstrate:
+
+- reflection reversibility;
+- transmission reversibility;
+- near-critical refraction;
+- TIR consistency where applicable;
+- Fresnel reciprocity;
+- BSDF reciprocity.
+
+Use exact reconstructed deterministic outgoing directions for the invariant.
+
+Stored float32 directions may be reported separately as implementation
+precision diagnostics.
+
+A failure here means STOP.
+
+Do not proceed to interpret stochastic asymmetry if local optics itself is
+broken.
+
+======================================================================
+15. ESTIMATE COMPLETE KERNEL PROBABILITIES
+======================================================================
+
+For representative physically important state pairs:
+
+    x <-> y
+
+estimate the complete transition probability under the current algorithm.
+
+Include:
+
+A. accepted rough-normal probability;
+
+B. probability of rough proposals rejected by compatibility;
+
+C. distribution of those rejected proposals among final fallback states;
+
+D. geometric Fresnel/TIR branch probability after fallback;
+
+E. any reuse of the original random Fresnel draw;
+
+F. whether fallback changes branch identity.
+
+For discrete fallback destinations, accumulate probability mass rather than
+pretending they have the same density structure as continuous rough
+transitions.
+
+======================================================================
+16. STRATIFY BY PHYSICALLY RELEVANT REGIME
+======================================================================
+
+Do not run hundreds of unrelated categories.
+
+At minimum stratify by:
+
+    macro-TIR outside
+    macro-TIR inside
+
+and by approximate incidence regime:
+
+    ordinary
+    near-critical
+    grazing
+
+Focus particularly on:
+
+    outside -> macro-TIR
+
+and the reverse:
+
+    macro-TIR -> outside / escape.
+
+These are the transitions implicated in long-lived trapping.
+
+======================================================================
+17. PRIMARY DECISION METRIC
+======================================================================
+
+Construct a final table containing, for each reciprocal state-pair class:
+
+    forward weighted transition measure
+    reverse weighted transition measure
+    absolute residual
+    relative residual
+    uncertainty / Monte-Carlo standard error
+    number of effective samples
+    PASS / FAIL
+
+Do not declare failure merely because Monte-Carlo noise is nonzero.
+
+The criterion must require statistically meaningful violation.
+
+For example, use:
+
+    residual relative to estimated statistical uncertainty
+
+plus an engineering tolerance justified by numerical precision.
+
+Do not tune the threshold based on the observed answer.
+
+======================================================================
+18. IMPORTANT FALLBACK-SPECIFIC METRIC
+======================================================================
+
+For transitions involving the macro-TIR basin, explicitly decompose:
+
+    total forward weighted flux
+        =
+    accepted rough contribution
+        +
+    fallback contribution
+
+and:
+
+    total reverse weighted flux
+        =
+    accepted rough contribution
+        +
+    fallback contribution.
+
+This should tell us whether fallback:
+
+    restores reciprocity,
+
+    leaves the imbalance unchanged,
+
+or:
+
+    makes the imbalance worse.
+
+That is the key result.
+
+======================================================================
+19. REQUIRED DECISION
+======================================================================
+
+At the end, produce one of only these scientific dispositions:
+
+    PROCESS_DEFECT_CONFIRMED
+
+or:
+
+    PROCESS_DEFECT_NOT_CONFIRMED
+
+A third result is permitted only if there is a genuine numerical/statistical
+blocker:
+
+    INSUFFICIENT_EVIDENCE
+
+But do not use INSUFFICIENT_EVIDENCE merely to avoid making a decision.
+
+======================================================================
+20. WHAT COUNTS AS PROCESS_DEFECT_CONFIRMED
+======================================================================
+
+Only choose:
+
+    PROCESS_DEFECT_CONFIRMED
+
+if all of the following are true:
+
+1. deterministic fixed-microfacet optics pass;
+
+2. the correct reciprocal state weighting has been derived/documented;
+
+3. complete mixed rough+fallback transition probabilities have been included;
+
+4. a statistically significant reciprocity/detailed-balance violation remains;
+
+5. the violation is specifically attributable to the current stochastic
+   rough/fallback process rather than output quantisation or diagnostic
+   bookkeeping;
+
+6. it is large enough to be physically relevant, especially for
+   macro-TIR trapping.
+
+======================================================================
+21. WHAT TO DO IF DEFECT IS CONFIRMED
+======================================================================
+
+If PROCESS_DEFECT_CONFIRMED:
+
+Do NOT immediately redesign the whole particle model.
+
+Identify the smallest physically justified correction.
+
+Investigate which of these is actually appropriate:
+
+- visible-normal sampling;
+- masking/shadowing-consistent microfacet sampling;
+- different compatibility handling;
+- a properly normalised rough-sphere boundary kernel;
+- another first-principles correction.
+
+Do not assume VNDF is automatically the answer.
+
+Do not tune against H170.
+
+If, and only if, the replacement process is sufficiently well defined,
+implement it in the SAME release workflow and validate it independently.
+
+If the correction is genuinely first-principles and complete:
+
+    version = V24.37.0
+
+Otherwise:
+
+    package diagnostic V24.36.12
+
+with the defect confirmed but production physics frozen.
+
+======================================================================
+22. WHAT TO DO IF DEFECT IS NOT CONFIRMED
+======================================================================
+
+If:
+
+    PROCESS_DEFECT_NOT_CONFIRMED
+
+then STOP implementation auditing.
+
+Do not create V24.36.13 to look for yet another obscure defect.
+
+Package:
+
+    V24.36.12
+
+diagnostic-only, production physics frozen.
+
+Document that the existing rough/fallback kernel is not demonstrated to
+violate reciprocity under the tested complete-kernel formulation.
+
+Future work should then address:
+
+    physical model validity
+    particle morphology
+    roughness provenance
+    explicit rough geometry
+    missing absorption if independently justified
+    other real sediment physics
+
+rather than further audit recursion.
+
+======================================================================
+23. STATUS OF THE 65-REFLECTION CAP
+======================================================================
+
+The production cap remains a known numerical defect.
+
+Do not confuse two questions:
+
+A. Is the rough/fallback kernel reciprocal?
+
+B. Is killing a ray at reflection 65 physical?
+
+Answer to B is already:
+
+    NO.
+
+In a diagnostic-only V24.36.12:
+
+    keep production physics frozen for comparison,
+    but continue diagnostically beyond 65 as before.
+
+Do not pretend the cap is fixed.
+
+If V24.37.0 is authorized:
+
+    numerical photon destruction at 65 MUST be removed.
+
+A larger arbitrary cap is not an acceptable physical solution.
+
+The replacement must conserve probability.
+
+======================================================================
+24. ROUGHNESS REMAINS FROZEN
+======================================================================
+
+Keep:
+
+    RMS slope = 25 degrees
+
+for the final decision test.
+
+Current status:
+
+    inherited
+    physically motivated
+    not independently validated for kaolin or loess.
+
+Do not tune it.
+
+Do not sweep it to improve H170.
+
+======================================================================
+25. ABSORPTION REMAINS FROZEN
+======================================================================
+
+Keep:
+
+    k = 0
+
+for this comparison.
+
+Do not solve trapping by adding absorption.
+
+======================================================================
+26. H170 IS OUT OF THE DESIGN LOOP
+======================================================================
+
+Do not use measured H170 to select:
+
+- sampler;
+- fallback rule;
+- reciprocity tolerance;
+- surface model;
+- roughness;
+- cap treatment;
+- branch probability;
+- escape model.
+
+Only after a first-principles process correction is independently validated
+may the six sediment cases be run.
+
+Do not retune afterward.
+
+======================================================================
+27. MINIMAL REQUIRED OUTPUTS
+======================================================================
+
+Do not generate another huge forest of CSV files.
+
+Produce only what is necessary to make the decision.
+
+At minimum:
+
+    v24_36_12_fixed_microfacet_reversibility.csv
+
+    v24_36_12_complete_kernel_reciprocity_pairs.csv
+
+    v24_36_12_complete_kernel_reciprocity_summary.csv
+
+    v24_36_12_fallback_flux_decomposition.csv
+
+    v24_36_12_macro_tir_reciprocal_flux.csv
+
+    v24_36_12_probability_conservation.csv
+
+    v24_36_12_process_decision.csv
+
+If a V24.37 correction is genuinely implemented, add the corresponding
+corrected-kernel comparison outputs.
+
+Do not produce duplicate tables merely because previous releases did.
+
+======================================================================
+28. MINIMAL REQUIRED PLOTS
+======================================================================
+
+Only produce plots that help answer the decision question.
+
+Suggested:
+
+1. forward vs reverse complete-kernel weighted transition flux;
+
+2. reciprocity residual / uncertainty by state-pair class;
+
+3. accepted-rough versus fallback contribution for:
+       outside -> macro-TIR
+       macro-TIR -> outside/escape;
+
+4. current versus corrected kernel ONLY if V24.37 becomes authorized.
+
+No decorative plots.
+
+======================================================================
+29. V24.36.11 DATA REUSE
+======================================================================
+
+Reuse existing V24.36.11 measurements and code where scientifically valid.
+
+Do not rerun expensive diagnostics simply because it is convenient.
+
+However, the canonical GPU verifier must still exercise:
+
+    both kaolin and loess
+    all required Qsca>=1 bins
+
+for the final complete-kernel calculation.
+
+Do not base a final release decision solely on archived CSVs.
+
+======================================================================
+30. VERSION RULE
+======================================================================
+
+Default next version:
+
+    CLARITAS_V24_36_12
+    release V24.36.12
+
+This should remain diagnostic-only unless:
+
+    PROCESS_DEFECT_CONFIRMED
+    AND
+    a physically justified correction is clearly derived
+    AND
+    the correction passes independent validation
+    AND
+    probability is conserved
+    AND
+    65-reflection numerical destruction is removed correctly.
+
+Only then may you instead produce:
+
+    CLARITAS_V24_37
+    release V24.37.0
+
+Do not force V24.37.
+
+======================================================================
+31. IF V24.37 IS IMPLEMENTED
+======================================================================
+
+A V24.37 correction must preserve:
+
+- V24.29 event-rate model;
+- Qsca<1 treatment;
+- apparatus;
+- detector;
+- optical constants;
+- PSD;
+- source;
+- k=0;
+- 25-degree roughness unless independently justified otherwise.
+
+It must not introduce:
+
+- H170 fit;
+- angular remapping;
+- Mie moment fitting;
+- empirical scattering suppression;
+- arbitrary branch factor;
+- artificial escape;
+- arbitrary loss;
+- fake absorption.
+
+Provide a correction-disabled mode.
+
+With identical seeds and correction disabled:
+
+    V24.37 correction-disabled
+        ==
+    V24.29 / frozen production behaviour
+
+where deterministic identity is expected.
+
+======================================================================
+32. REAL RELEASE-ENGINEERING REQUIREMENTS
+======================================================================
+
+The development workflow must be:
+
+    reproduce
+    ->
+    understand
+    ->
+    implement smallest justified change
+    ->
+    exact regression
+    ->
+    real-path integration
+    ->
+    adversarial review
+    ->
+    package
+    ->
+    clean extraction
+    ->
+    rerun
+    ->
+    deliver ZIP.
+
+Do not repeat previous packaging mistakes.
+
+======================================================================
+33. WINDOWS + GIT BASH + GOOGLE DRIVE IS THE REAL TARGET ENVIRONMENT
+======================================================================
+
+My canonical environment is:
+
+    Windows
+    Conda
+    Git Bash
+    project located under Google Drive Sync.
+
+Therefore do NOT write transient verifier artifacts into the source tree.
+
+In particular:
+
+DO NOT use:
+
+    python -m py_compile
+
+in a way that creates package-tree __pycache__ files.
+
+The previous failure was:
+
+    [WinError 5] Access is denied
+
+when py_compile attempted to rename a transient .pyc inside a
+Google Drive-synchronised __pycache__ directory.
+
+Retain the V24.36.11 fix:
+
+    compile(source_bytes, filename, "exec", ...)
+
+or equivalent in-memory syntax validation.
+
+Canonical entry points should retain:
+
+    sys.dont_write_bytecode = True
+
+before importing local modules where appropriate.
+
+The verifier must not require writing __pycache__ into the package tree.
+
+======================================================================
+34. PERMANENT REGRESSION FOR LOCKED __pycache__
+======================================================================
+
+Retain a real regression for the exact previous failure class.
+
+The host verifier / release test must prove that the canonical workflow
+still succeeds when:
+
+    __pycache__ already exists
+    and
+    it is not writable.
+
+No test should need to create, rename, or update .pyc files in the package
+tree.
+
+======================================================================
+35. NO NESTED BASH
+======================================================================
+
+Canonical orchestration must be Python-only.
+
+Use:
+
+    sys.executable
+
+for child Python processes.
+
+Do not start nested Git Bash shells.
+
+Do not use brittle Windows <-> Unix path translation handoffs.
+
+======================================================================
+36. OTHER PERMANENT REGRESSIONS
+======================================================================
+
+Retain regressions for:
+
+1. event-code maximum bounds;
+
+2. native-mu quantisation edge case;
+
+3. Windows longest-path budget;
+
+4. single-source release identity;
+
+5. stale metadata rejection;
+
+6. no bare NAN / INFINITY in CUDA;
+
+7. no nested Bash;
+
+8. sys.executable children;
+
+9. zero-ledger path;
+
+10. zero-failure real writers;
+
+11. V24.36.7 legacy Snell false positive;
+
+12. 65-reflection inclusive-loop semantics;
+
+13. cap -> caller status-4 termination;
+
+14. 512-order diagnostic bounds;
+
+15. Qsca below / at / above 1;
+
+16. both materials;
+
+17. all required PSD bins;
+
+18. empty populations;
+
+19. no package-tree bytecode writes;
+
+20. corrected probability-count closure;
+
+21. correct reflection-side n1/n2 reverse audit;
+
+22. exact-direction reconstruction for reciprocity invariant.
+
+======================================================================
+37. CUDA ABI AND MEMORY SAFETY
+======================================================================
+
+Check actual:
+
+- Python/CUDA argument counts;
+- transition array dimensions;
+- sample buffers;
+- pair buffers;
+- 512/513 bounds;
+- maximum indices;
+- sentinel storage;
+- empty arrays;
+- overflow flags;
+- zero-population paths.
+
+Do not count sentinel storage as data.
+
+======================================================================
+38. RNG DISCIPLINE
+======================================================================
+
+Production-prefix replay must remain exact.
+
+Diagnostics must not perturb production RNG.
+
+Document:
+
+- event RNG;
+- interface RNG;
+- diagnostic Monte-Carlo RNG;
+- paired reciprocity sampling RNG.
+
+If deterministic reverse-pair sampling requires new random values, keep
+them in dedicated diagnostic kernels.
+
+======================================================================
+39. REAL HOST-SMOKE PIPELINE
+======================================================================
+
+Before packaging, execute the ACTUAL:
+
+    config
+    ->
+    driver
+    ->
+    real writer
+    ->
+    summarizer
+    ->
+    decision writer
+    ->
+    plotter
+    ->
+    campaign finalizer
+
+with deterministic tiny host fixtures.
+
+Do not fabricate downstream CSVs just to exercise scripts.
+
+======================================================================
+40. GPU CLAIMS
+======================================================================
+
+If your current environment cannot execute real CuPy/CUDA:
+
+say exactly:
+
+    GPU validation is packaged but must run on Ben's CUDA machine.
+
+Do not claim GPU PASS from:
+
+- host simulation;
+- fake CUDA;
+- syntax tests;
+- static source analysis.
+
+======================================================================
+41. CAMPAIGN BEHAVIOUR
+======================================================================
+
+If the release remains V24.36.12 diagnostic-only:
+
+    run_v24_36_12_campaign.py
+
+must only finalize the diagnostic outputs.
+
+It MUST NOT run the six sediment H170 cases.
+
+If V24.37.0 is genuinely authorized and implemented:
+
+only then may the production sediment campaign be available.
+
+======================================================================
+42. MANDATORY RELEASE WORKFLOW
+======================================================================
+
+This requirement is absolute.
+
+Once implementation is complete:
+
+DO NOT REPLY YET.
+
+You must first:
+
+1. Run package preflight in the build tree.
+
+2. Run complete host verifier in the build tree.
+
+3. Run the real host-smoke pipeline.
+
+4. Perform adversarial source review.
+
+5. Confirm no stale executable modules from previous releases.
+
+6. Generate/update manifest and critical hashes.
+
+7. Build the FINAL release ZIP.
+
+8. Test ZIP integrity.
+
+9. Extract that exact ZIP into a FRESH directory.
+
+10. From the extracted copy run:
+        package preflight
+        complete host verifier
+        real host-smoke pipeline.
+
+11. Test the non-writable/locked __pycache__ regression.
+
+12. Verify path budget under the actual intended release folder name.
+
+13. Verify critical hashes again.
+
+14. Compute FINAL ZIP SHA-256.
+
+15. Do not alter the ZIP afterward.
+
+16. Provide me the ZIP.
+
+======================================================================
+43. THE ZIP IS COMPULSORY
+======================================================================
+
+This is not optional.
+
+Whether the result is:
+
+    PROCESS_DEFECT_CONFIRMED
+
+or:
+
+    PROCESS_DEFECT_NOT_CONFIRMED
+
+or:
+
+    INSUFFICIENT_EVIDENCE
+
+you must still package the completed diagnostic release and give me the
+actual ZIP.
+
+If the process correction is not justified:
+
+    deliver V24.36.12.zip
+
+If the process correction IS justified and successfully implemented:
+
+    deliver V24.37.0.zip
+
+Do not end the task with:
+
+    "I have nearly completed the package"
+
+or:
+
+    "the final ZIP still needs building"
+
+or:
+
+    "I cannot hand over the package yet"
+
+unless there is a genuine unrecoverable technical limitation in the
+execution environment.
+
+If you can build it, BUILD IT.
+
+======================================================================
+44. FINAL RESPONSE MUST CONTAIN
+======================================================================
+
+The final response must include:
+
+1. Actual downloadable ZIP link.
+
+2. Exact release version.
+
+3. Whether it is:
+       diagnostic-only
+       or
+       production physics correction.
+
+4. Final scientific decision:
+       PROCESS_DEFECT_CONFIRMED
+       PROCESS_DEFECT_NOT_CONFIRMED
+       or
+       INSUFFICIENT_EVIDENCE.
+
+5. Whether deterministic fixed-microfacet optics passed.
+
+6. Whether the COMPLETE mixed rough+fallback kernel satisfies the
+   correct reciprocal/detailed-balance relation.
+
+7. Quantitative residuals and uncertainty.
+
+8. Breakdown of:
+       accepted rough contribution
+       fallback contribution
+
+   for:
+       outside -> macro-TIR
+       macro-TIR -> outside/escape.
+
+9. Whether fallback restores or worsens the asymmetry.
+
+10. Whether candidate rough escape probability continues to be
+    redirected into geometric TIR.
+
+11. Status of the 65-reflection sink.
+
+12. Status of 25-degree roughness.
+
+13. Explicit statement that no:
+       H170 fit
+       angular remap
+       moment fit
+       empirical loss
+       roughness tuning
+       arbitrary branch suppression
+    was introduced.
+
+14. Host tests actually executed.
+
+15. GPU tests actually executed, or exactly:
+
+       GPU validation is packaged but must run on Ben's CUDA machine.
+
+16. Final ZIP SHA-256.
+
+17. Frozen production-core SHA-256.
+
+18. Frozen production CUDA_SRC SHA-256.
+
+19. Diagnostic CUDA SHA-256.
+
+20. Exact user run commands.
+
+======================================================================
+45. CANONICAL USER COMMANDS
+======================================================================
+
+Expected form:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/<release_folder>"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_<release>.py && \
+    python verify_<release>.py && \
+    python run_<release>_campaign.py
+
+No nested Bash.
+
+======================================================================
+46. FINAL PROJECT RULE
+======================================================================
+
+We are no longer looking for more things to audit.
+
+This release answers ONE question:
+
+    Is the complete rough + fallback boundary transition kernel
+    reciprocal / detailed-balanced under the correct optical state measure?
+
+If YES:
+
+    stop implementation auditing.
+
+If NO:
+
+    identify and correct the smallest physical process responsible.
+
+Do not audit the audit again.
+
+Do not tune the curve.
+
+Do not use H170 to design the fix.
+
+Do not manufacture a physics release because one seems desirable.
+
+And do not finish without the tangible deliverable.
+
+    FIX THE PROCESS, NOT THE CURVE.
+
+    NO AVOIDABLE RELEASE ERRORS.
+
+    ONE FINAL DECISION TEST.
+
+    DELIVER THE ZIP.

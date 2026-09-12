@@ -1,0 +1,1182 @@
+Create the next CLARITAS release, V24.52.0, using the supplied V24.51 package as the sole code baseline and the latest V24.51 CUDA run/results as the diagnostic evidence.
+
+INPUTS
+- CLARITAS_V24_51.zip
+- the supplied V24.51 results/log bundle from the run reporting:
+
+      regions 300000/300000
+      one-step 494951/500000
+      particle 100000/100000
+      V24.50 regression 512/512
+      historical local 14/14
+
+  followed by:
+
+      FAIL complete GPU geometry
+      RuntimeError('complete apparatus geometry gate failed')
+
+This is a real release-engineering task.
+
+Inspect the COMPLETE V24.51 package and all supplied V24.51 evidence first.
+
+Implement the correction, run everything genuinely supported by your environment, package the complete release, and RETURN:
+
+    CLARITAS_V24_52.zip
+
+The ZIP and the exact run commands are MANDATORY DELIVERABLES.
+
+Do not stop after analysis.
+Do not stop because CUDA is unavailable in your own environment.
+Do not withhold the ZIP because some runtime validation could not be executed.
+Do not return only patches.
+Do not return only modified files.
+Do not ask me to perform edits manually.
+Do not tell me to package the release myself.
+
+If CUDA is unavailable, mark the corresponding stages NOT RUN, but STILL:
+- finish the implementation;
+- finish host validation;
+- finish package validation;
+- build the final ZIP;
+- clean-extract and verify the final ZIP;
+- provide the ZIP;
+- provide the exact commands for my CUDA machine.
+
+======================================================================
+PRIMARY OBJECTIVE
+======================================================================
+
+V24.52.0 is a TARGETED VALIDATOR-CORRECTION AND FULL-CAMPAIGN RELEASE.
+
+V24.51 introduced the comprehensive apparatus geometry reconstruction.
+
+The latest real CUDA run shows that almost all of the V24.51 comprehensive geometry validation succeeds:
+
+    random region classification:
+        300000 / 300000
+
+    one-step CUDA/reference:
+        494951 / 500000
+
+    particle accessibility:
+        100000 / 100000
+
+    V24.50 stored-failure regression:
+        512 / 512
+
+    historical/local replay:
+        14 / 14
+
+The only failing geometry subtest is therefore:
+
+    5049 / 500000 one-step cases
+
+Current analysis indicates that ALL 5,049 mismatches are explained by one defect in the independent V24.51 reference implementation:
+
+    HORIZONTAL WATER/HEADSPACE RAYS ARE ASSUMED TO HIT THE
+    CYLINDRICAL WALL NEXT, WITHOUT TESTING THE CURVED VORTEX
+    FREE SURFACE.
+
+This is incorrect.
+
+A horizontal ray has:
+
+    vz = 0
+
+but x and y still vary, so radius varies.
+
+For a radially varying localized-Scully free surface:
+
+    z_surface = f(r)
+
+a horizontal ray can cross the water/air free surface even though its z coordinate remains constant.
+
+The production CUDA already tests the free surface and cylindrical wall and chooses the first valid hit.
+
+The V24.51 independent oracle does not do so for these horizontal states.
+
+V24.52 must correct THIS validation defect, rerun the complete geometry gate, and then CONTINUE THROUGH THE ACTUAL PRODUCTION AND SEDIMENT CAMPAIGNS.
+
+======================================================================
+DO NOT REOPEN THE PRODUCTION GEOMETRY WITHOUT EVIDENCE
+======================================================================
+
+The V24.51 production geometry must remain frozen initially.
+
+Do NOT modify the V24.51 vessel/headspace/free-surface production CUDA merely because the independent one-step oracle failed.
+
+Current evidence strongly supports the V24.51 production geometry:
+
+- 300000/300000 region classifications pass;
+- 512/512 stored V24.50 acrylic failure states are repaired;
+- particle accessibility is 100000/100000;
+- historical/local replay is 14/14;
+- the 5,049 one-step mismatches are exactly consistent with an incomplete host reference.
+
+Only modify production CUDA if the corrected independent V24.52 oracle demonstrates a genuine local CUDA error.
+
+Otherwise report:
+
+    production_geometry_changed_from_v24_51 = false
+
+The previous V24.51 geometry corrections remain part of the production model.
+
+======================================================================
+EXACT DIAGNOSIS TO VERIFY
+======================================================================
+
+Do not merely trust this prompt.
+
+Independently reproduce the V24.51 500,000-state validation population and verify the mismatch classification.
+
+Current analysis predicts:
+
+    total mismatches                       = 5049
+
+    horizontal WATER cases where
+    free surface is reached before wall   = 3225
+
+    horizontal HEADSPACE cases where
+    free surface is reached before wall   = 1824
+
+    total predicted oracle errors          = 5049
+
+    unexplained residual                   = 0
+
+Verify these counts from the actual package/results.
+
+Do NOT hard-code them as the validator result.
+
+======================================================================
+THE REFERENCE BUG
+======================================================================
+
+Audit the V24.51 independent one-step reference.
+
+It currently appears to contain logic equivalent to:
+
+    if abs(vz) < tolerance:
+        t = finite_cylinder_hit(...)
+        return wall_surface
+
+or otherwise assumes that a horizontal water/headspace ray cannot hit the free surface.
+
+That is physically wrong for a radially varying free surface.
+
+For a ray:
+
+    p(t) = (x0 + vx*t,
+            y0 + vy*t,
+            z0)
+
+the radial coordinate:
+
+    r(t) = sqrt((x0+vx*t)^2 + (y0+vy*t)^2)
+
+changes with t.
+
+Therefore a surface defined by:
+
+    z0 = free_surface_z(r)
+
+can be crossed by a horizontal ray.
+
+Correct the independent host/reference implementation.
+
+======================================================================
+INDEPENDENT HORIZONTAL FREE-SURFACE INTERSECTION
+======================================================================
+
+The reference implementation must remain genuinely independent from the CUDA production helper.
+
+Do NOT simply call the CUDA free-surface routine from Python.
+
+For the localized Scully surface used by the model, derive or independently solve the horizontal crossing.
+
+If the implemented surface has the form approximately:
+
+    z_surface(r) = Zbase + H * r^2 / (a^2 + r^2)
+
+then for a horizontal ray at fixed z:
+
+    u = (z - Zbase) / H
+
+and when:
+
+    0 < u < 1
+
+the corresponding free-surface radius satisfies:
+
+    r_target^2 = a^2 * u / (1-u)
+
+The independent host reference can then intersect the ray's XY line with:
+
+    x(t)^2 + y(t)^2 = r_target^2
+
+and select the smallest valid positive root.
+
+This is illustrative.
+
+Use the ACTUAL V24.51 free-surface formulation and sign conventions.
+
+Do not blindly copy this expression if the production equation differs.
+
+The important requirement is:
+
+    independently calculate the free-surface crossing
+    for horizontal rays.
+
+======================================================================
+WATER ONE-STEP REFERENCE
+======================================================================
+
+For a WATER state, the independent reference must evaluate all physically relevant candidate boundaries.
+
+This includes at least, as applicable:
+
+- water/air free surface;
+- finite inner acrylic cylinder;
+- vessel bottom;
+- sediment-particle interface if part of that test;
+- any other actual production boundary.
+
+For horizontal states, compare:
+
+    t_free_surface
+
+against:
+
+    t_inner_wall
+
+and select the nearest valid physical boundary.
+
+Do not automatically return the wall.
+
+======================================================================
+HEADSPACE ONE-STEP REFERENCE
+======================================================================
+
+For a HEADSPACE/AIR state inside the bore, independently evaluate:
+
+- free surface;
+- finite inner acrylic wall;
+- physical open top / escape boundary;
+- any other actual valid surface.
+
+For horizontal headspace states in particular:
+
+    free-surface crossing
+
+must compete with:
+
+    inner-wall crossing.
+
+Again:
+
+    vz = 0
+
+does NOT imply:
+
+    free surface cannot be intersected.
+
+======================================================================
+DO NOT SPECIAL-CASE THE 5,049 STATES
+======================================================================
+
+Do not implement:
+
+    if index in known_bad_cases:
+        ...
+
+Do not special-case:
+
+- the 3,225 water states;
+- the 1,824 headspace states;
+- the exact 5,049 total.
+
+The correction must be a general physical reference implementation.
+
+The 5,049 cases are regression evidence only.
+
+======================================================================
+ADD A DETERMINISTIC REGRESSION
+======================================================================
+
+Add deterministic tests demonstrating at least:
+
+1. horizontal WATER ray for which wall is first;
+
+2. horizontal WATER ray for which the vortex free surface is first;
+
+3. horizontal HEADSPACE ray for which wall is first;
+
+4. horizontal HEADSPACE ray for which free surface is first;
+
+5. tangential/no-crossing case;
+
+6. near-axis case;
+
+7. near-wall case;
+
+8. near-free-surface case;
+
+9. case where the free-surface and wall distances are close but unambiguous.
+
+Verify:
+
+- surface identity;
+- positive intersection distance;
+- finite-support validity;
+- material transition.
+
+No production CUDA call may be used as the independent mathematical oracle.
+
+======================================================================
+RE-RUN THE COMPLETE 500,000-STATE TEST
+======================================================================
+
+After correcting the reference, rerun the exact complete one-step population.
+
+The requirement is:
+
+    500000 / 500000
+
+or otherwise ZERO UNEXPLAINED semantic mismatches.
+
+Report separately:
+
+- water horizontal;
+- water non-horizontal;
+- headspace horizontal;
+- headspace non-horizontal;
+- acrylic;
+- boundary-adjacent populations;
+- any other generated category.
+
+If any residual mismatches remain:
+
+- diagnose them in this release;
+- do not immediately create another future-release audit;
+- determine whether they are reference errors, precision semantics, or genuine CUDA defects;
+- fix all demonstrated validation defects in V24.52.
+
+Do not stop at the first residual case.
+
+======================================================================
+PRESERVE ALL V24.51 COMPLETE-GEOMETRY VALIDATION
+======================================================================
+
+Do not remove or weaken the V24.51 comprehensive validation.
+
+Retain:
+
+- canonical geometry manifest;
+- complete region model;
+- complete surface/interface model;
+- finite wall support;
+- headspace transport;
+- open physical tube top;
+- water/free-surface model;
+- connected acrylic sidewall and bottom;
+- top annular acrylic surface;
+- source geometry checks;
+- detector geometry checks;
+- particle geometry checks;
+- random region classification;
+- previous V24.50 failure-state regression;
+- case-1650 regression;
+- historical/local replay;
+- scalar input parity;
+- memory-layout regression;
+- RNG/internal-acrylic tests.
+
+The corrected one-step oracle is part of the comprehensive gate, not a replacement for it.
+
+======================================================================
+V24.50 FAILURE REGRESSION
+======================================================================
+
+Retain the complete stored V24.50 regression.
+
+V24.51 reported:
+
+    512 / 512 repaired
+
+Require this to remain true.
+
+Do not regress the sidewall/free-surface geometry merely while fixing the validator.
+
+======================================================================
+CASE-1650 REGRESSION
+======================================================================
+
+Retain the V24.50/V24.51 scalar-input-parity regression.
+
+Do not reintroduce use of unquantized Python geometry parameters where CUDA receives float32-effective values.
+
+Keep the existing distance tolerance unchanged unless independent evidence demonstrates otherwise.
+
+======================================================================
+PRODUCTION CUDA ABI
+======================================================================
+
+Perform the ABI audit again.
+
+V24.51 currently reports approximately:
+
+    trace_kernel             = 156
+    trace Python launch      = 156
+
+    score_detectors_kernel   = 47
+    score Python launch      = 47
+
+Verify actual V24.52 source.
+
+Do not assume these counts.
+
+If production CUDA remains unchanged, the counts will probably remain the same, but audit them anyway.
+
+ABI mismatch is a release blocker.
+
+======================================================================
+COMPLETE GEOMETRY GATE
+======================================================================
+
+The comprehensive V24.52 GPU geometry gate should include at least:
+
+- boundary/microsurface suite;
+- complete apparatus deterministic geometry;
+- region classification:
+      at least the existing 300,000-state test;
+- corrected one-step:
+      500,000 states;
+- particle accessibility:
+      100,000 states;
+- V24.50 stored failure regression:
+      all available states;
+- historical/local replay;
+- memory-layout validation;
+- scalar-input-parity validation;
+- NaN/Inf checks;
+- invalid region/surface checks;
+- RNG/internal-acrylic continuity checks.
+
+If this passes:
+
+    geometry_validation = PASS
+
+and:
+
+    STOP AUDITING GEOMETRY.
+
+Proceed immediately to the production qualification.
+
+======================================================================
+EXACT 1,000,000-RAY PRODUCTION QUALIFICATION
+======================================================================
+
+Once the corrected complete geometry gate passes, automatically run:
+
+    EXACTLY 1,000,000 production rays
+
+Do not substitute a smoke test.
+
+Do not reduce the count.
+
+Record:
+
+- total rays;
+- completed rays;
+- detector hits;
+- transport failures;
+- failure classes;
+- water failures;
+- acrylic failures;
+- headspace failures;
+- microsurface failures;
+- watchdogs;
+- emergency caps;
+- NaN;
+- Inf;
+- invalid region;
+- invalid surface;
+- weights/probability sanity metrics;
+- detector summary;
+- elapsed time.
+
+Explicitly compare against the V24.50 result that contained approximately:
+
+    7,734 acrylic failures / 1,000,000 rays
+
+The V24.51 geometry was intended to eliminate that production failure mode.
+
+Show whether it does.
+
+======================================================================
+FIVE-CASE CROSS-CASE INTEGRITY MATRIX
+======================================================================
+
+If the exact million-ray production qualification passes, automatically run the full existing five-case integrity matrix.
+
+Do not reduce the case count.
+
+Report EACH case individually.
+
+For each case include:
+
+- name/ID;
+- configuration;
+- ray count;
+- status;
+- detector outputs;
+- transport failures;
+- watchdogs/nonfinite states;
+- key integrity metrics;
+- elapsed time.
+
+Do not merely print:
+
+    integrity matrix = PASS
+
+without the individual results.
+
+======================================================================
+SEDIMENT DIAGNOSTIC CAMPAIGN MUST ACTUALLY RUN
+======================================================================
+
+This release must address the problem that the V24.51 runner stopped here:
+
+    RuntimeError('complete apparatus geometry gate failed')
+
+before sediment diagnostics executed.
+
+That defeats the explicit requirement to inspect CLARITAS sediment output.
+
+V24.52 must restructure the campaign so that SEDIMENT DIAGNOSTIC EXECUTION is a distinct phase from PRODUCTION AUTHORIZATION.
+
+On a compatible CUDA machine, run the sediment diagnostic campaign even if a production qualification stage fails, PROVIDED the executable transport is sufficiently functional for diagnostic simulation.
+
+Do not equate:
+
+    production qualification failed
+
+with:
+
+    sediment diagnostics must not run
+
+These are separate concepts.
+
+======================================================================
+SEDIMENT DIAGNOSTIC SAFETY RULE
+======================================================================
+
+Do not run sediment simulations if the executable is fundamentally incapable of meaningful transport, for example:
+
+- CUDA kernel cannot compile;
+- ABI mismatch;
+- catastrophic region classification;
+- NaN-dominated transport;
+- initialization failure;
+- fundamental geometry corruption.
+
+But a release-gate failure by itself is NOT automatically a reason to suppress diagnostic sediment execution.
+
+In particular, validation disagreement alone should not necessarily prevent diagnostic sediment output.
+
+Where diagnostic execution proceeds without production authorization, label it clearly:
+
+    DIAGNOSTIC / NOT PRODUCTION-AUTHORIZED
+
+======================================================================
+DO NOT THROW AWAY SEDIMENT DIAGNOSTICS ON AN EARLIER EXCEPTION
+======================================================================
+
+The top-level campaign runner must not have a structure where:
+
+    geometry gate raises exception
+        ->
+    whole process exits
+        ->
+    sediment diagnostics never run
+
+Refactor the orchestration.
+
+Conceptually, distinguish:
+
+    fatal executable failure
+
+from:
+
+    production qualification failure
+
+and from:
+
+    sediment diagnostic execution eligibility.
+
+Production gates remain fail-closed.
+
+Diagnostic sediment execution should be attempted separately when safe.
+
+Use robust exception handling so results already obtained are preserved.
+
+Refresh all status/summary files before final exit.
+
+======================================================================
+SEDIMENT CASE INVENTORY
+======================================================================
+
+Retain and verify the V24.51 sediment inventory.
+
+The current V24.51 work identified six current executable cases:
+
+- loess 0.5 g/L
+- loess 2 g/L
+- loess 4 g/L
+- kaolin 0.5 g/L
+- kaolin 2 g/L
+- kaolin 4 g/L
+
+Verify the actual package.
+
+Do not blindly assume these are the only cases.
+
+Search for all current:
+
+- sediment configurations;
+- PSD cases;
+- material cases;
+- validation cases;
+- H170 cases;
+- campaign scripts.
+
+Produce:
+
+    sediment_case_inventory.csv
+
+containing:
+
+    case
+    discovered
+    executable
+    selected_for_v24_52
+    executed
+    skip_reason
+
+======================================================================
+RUN THE SIX CURRENT SEDIMENT CASES
+======================================================================
+
+If the six current cases above are indeed the intended current diagnostic set, run ALL SIX on a compatible CUDA machine.
+
+Use the configured V24.52 diagnostic ray count.
+
+If V24.51 defines:
+
+    1,000,000 rays per sediment case
+
+retain that unless the actual package defines otherwise.
+
+Do not silently reduce ray count for convenience.
+
+For each case report:
+
+- material;
+- concentration;
+- PSD metadata;
+- particle configuration;
+- vortex/flow configuration;
+- ray count;
+- seed;
+- detector configuration;
+- detector outputs;
+- H170 where applicable;
+- relevant detector ratios;
+- detected fraction;
+- transport failures;
+- water failures;
+- acrylic failures;
+- headspace failures;
+- watchdogs;
+- emergency caps;
+- NaN/Inf;
+- elapsed time;
+- output file locations.
+
+======================================================================
+SEDIMENT REPORTING
+======================================================================
+
+The release must generate at minimum:
+
+    sediment_case_inventory.csv
+    sediment_case_results.csv
+    sediment_case_results.json
+    V24_52_SEDIMENT_TEST_REPORT.md
+
+Retain raw per-case simulation output as appropriate.
+
+The report should make it easy to answer:
+
+- What cases did CLARITAS run?
+- What changed between loess and kaolin?
+- What changed with concentration?
+- What did every detector report?
+- Did H170 change?
+- Were there any transport failures?
+- Were there any geometry failures?
+- How many rays were simulated?
+- What seeds/configurations were used?
+
+Do not hide this information behind one PASS Boolean.
+
+======================================================================
+SEDIMENT PLOTS
+======================================================================
+
+Generate meaningful sediment comparison plots from quantities CLARITAS genuinely produces.
+
+Where supported, include:
+
+- detector response vs concentration;
+- loess vs kaolin comparison;
+- detector response ratio vs concentration;
+- H170 vs concentration;
+- detected fraction vs concentration;
+- per-detector case comparison;
+- transport termination/failure comparison.
+
+Do not fabricate unsupported quantities.
+
+Include backing CSV data where practical.
+
+======================================================================
+SEDIMENT PRODUCTION AUTHORIZATION REMAINS FAIL-CLOSED
+======================================================================
+
+Continue to distinguish:
+
+    sediment_diagnostic_campaign_run
+
+from:
+
+    sediment_campaign_authorized
+
+Diagnostic runs may exist even when:
+
+    sediment_campaign_authorized = false
+
+Production authorization may become true ONLY after all required production qualification gates pass.
+
+Maintain at least:
+
+    geometry_validation
+    million_ray_qualification
+    five_case_integrity_matrix
+    sediment_diagnostic_campaign_status
+    production_transport_validated
+    sediment_campaign_authorized
+
+======================================================================
+RUN ORDER
+======================================================================
+
+On my CUDA machine, the top-level V24.52 campaign should perform the full workflow automatically:
+
+1. package/static checks
+2. CUDA ABI checks
+3. boundary/microsurface validation
+4. complete apparatus geometry validation
+5. corrected 500,000-state one-step validation
+6. particle accessibility
+7. V24.50 failure regression
+8. historical/local replay
+9. complete geometry gate decision
+
+If geometry passes:
+
+10. exact 1,000,000-ray production qualification
+11. five-case integrity matrix if production qualification passes
+
+Then, independently where diagnostically safe:
+
+12. sediment diagnostic case inventory
+13. sediment diagnostic execution
+14. sediment plots/report
+15. final qualification/authorization decision
+
+The sediment phase must not be accidentally skipped merely because stages 10 or 11 fail.
+
+======================================================================
+NO EMPIRICAL PHYSICS TUNING
+======================================================================
+
+Preserve the process-based physical model.
+
+DO NOT introduce:
+
+- material-specific empirical scatter multipliers;
+- PSD-specific boost factors;
+- fitted detector gains;
+- arbitrary sediment-response corrections;
+- hand-tuned transmission factors;
+- special-case expected detector outputs.
+
+The sediment results should be whatever the physical model predicts.
+
+======================================================================
+NO MORE GEOMETRY REDESIGN UNLESS PROVEN
+======================================================================
+
+Do not reopen the whole V24.51 geometry reconstruction because of the 5,049 reference mismatches.
+
+The current evidence accounts for those mismatches exactly.
+
+Correct the independent oracle first.
+
+If the corrected oracle gives:
+
+    500000 / 500000
+
+then the V24.51 comprehensive production geometry should proceed directly to million-ray qualification.
+
+Do not invent another geometry-audit stage.
+
+======================================================================
+FAILURE DIAGNOSTICS
+======================================================================
+
+Any residual geometry failure must produce enough machine-readable information to diagnose it in the same release.
+
+Include:
+
+- state index;
+- generated category;
+- region;
+- position;
+- direction;
+- CUDA selected surface;
+- reference selected surface;
+- all candidate t values;
+- free-surface candidate;
+- cylinder candidate;
+- finite-support classification;
+- geometry parameters;
+- tolerance;
+- failure class.
+
+Do not merely output a mismatch count.
+
+======================================================================
+PROCESS DECISION / SUMMARY ROBUSTNESS
+======================================================================
+
+All status files must reflect the latest completed stages even if later stages fail.
+
+Refresh before every exit.
+
+Do not allow stale summaries.
+
+If, for example:
+
+    geometry = PASS
+    million-ray = FAIL
+    sediment diagnostic = PASS
+
+the final summary must show exactly that.
+
+Do not collapse the entire run into one top-level FAIL that hides completed work.
+
+======================================================================
+MACHINE-READABLE TOP-LEVEL SUMMARY
+======================================================================
+
+Include at least:
+
+    package_validation
+    host_validation
+    cuda_available
+    cuda_abi_validation
+
+    boundary_gpu_validation
+    complete_geometry_validation
+    random_region_classification_validation
+    corrected_horizontal_free_surface_regression
+    one_step_500k_validation
+    particle_accessibility_validation
+    v24_50_failure_regression
+    historical_local_replay_validation
+
+    million_ray_qualification
+    five_case_integrity_matrix
+
+    sediment_cases_discovered
+    sediment_cases_executed
+    sediment_diagnostic_campaign_status
+
+    production_geometry_changed_from_v24_51
+    production_transport_validated
+    sediment_campaign_authorized
+
+Use PASS / FAIL / NOT RUN appropriately.
+
+======================================================================
+RELEASE VERSIONING
+======================================================================
+
+Make the release consistently:
+
+    V24.52.0
+
+Update all appropriate:
+
+- package version;
+- source version;
+- directory name;
+- validation scripts;
+- campaign runner;
+- qualification reports;
+- sediment report;
+- process decision;
+- geometry decision;
+- release notes;
+- README;
+- manifests;
+- SHA256SUMS.
+
+Historical references to V24.51 are allowed only where they explicitly describe previous evidence.
+
+======================================================================
+ENGINEERING NOTE
+======================================================================
+
+Create:
+
+    V24_52_VALIDATOR_AND_CAMPAIGN_ENGINEERING_NOTE.md
+
+Explain:
+
+1. V24.51 comprehensive geometry changes;
+2. the real CUDA V24.51 results;
+3. why 5,049/500,000 failed;
+4. why horizontal rays can cross a curved free surface;
+5. independent reconstruction of the 5,049 population;
+6. corrected host-reference method;
+7. whether any production CUDA geometry changed;
+8. corrected 500k result;
+9. million-ray result;
+10. five-case results;
+11. sediment diagnostic cases;
+12. sediment outputs;
+13. production authorization status.
+
+======================================================================
+TESTING
+======================================================================
+
+Run everything supported by your environment.
+
+If CUDA is available:
+
+RUN THE ENTIRE WORKFLOW, INCLUDING SEDIMENT DIAGNOSTICS.
+
+If CUDA is unavailable:
+
+DO NOT STOP THE RELEASE PROCESS.
+
+Instead:
+
+- run all host/static tests;
+- run deterministic horizontal-free-surface regression;
+- verify package;
+- verify ABI statically;
+- mark GPU stages NOT RUN;
+- still build the complete final ZIP;
+- still clean-extract and verify it;
+- still provide it;
+- still provide the exact CUDA run commands.
+
+GPU unavailability is NOT a reason to omit the deliverable.
+
+======================================================================
+PACKAGING — MANDATORY
+======================================================================
+
+RETURN:
+
+    CLARITAS_V24_52.zip
+
+containing exactly one top-level directory:
+
+    CLARITAS_V24_52/
+
+This is mandatory regardless of whether CUDA is available in your environment.
+
+Do not stop before packaging.
+
+Do not say:
+
+    "packaging remains to be done"
+
+Do not say:
+
+    "I cannot provide the ZIP because GPU validation is unavailable"
+
+Package the candidate with truthful PASS / FAIL / NOT RUN statuses.
+
+Do not include:
+
+- __pycache__
+- .pyc
+- CuPy cache
+- Jitify cache
+- editor files
+- temporary build files
+- nested prior release ZIPs
+- unnecessary enormous trace files.
+
+Generate:
+
+    SHA256SUMS.txt
+
+for release-critical files.
+
+Verify every hash.
+
+Then:
+
+1. build the FINAL ZIP;
+2. test compressed-data integrity;
+3. calculate the ZIP SHA-256;
+4. clean-extract the FINAL ZIP into a fresh directory;
+5. run package preflight from that extracted copy;
+6. run the complete host verifier from that extracted copy;
+7. verify SHA256SUMS from that extracted copy.
+
+Do not validate one tree and package another.
+
+======================================================================
+RUN COMMANDS — MANDATORY
+======================================================================
+
+The final response MUST contain the exact commands I should run.
+
+Do not omit them.
+
+Assume:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_52"
+
+    conda activate claritas
+
+Then clear stale caches/results:
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+Provide the ACTUAL V24.52 script names.
+
+Prefer a simple sequence analogous to:
+
+    python preflight_v24_52_package.py && \
+    python verify_v24_52_corrected_geometry.py && \
+    python run_v24_52_campaign.py
+
+but use the filenames you actually create.
+
+The final campaign command must automatically attempt the full intended GPU workflow and sediment diagnostic campaign.
+
+I should not need to ask for the run commands in a follow-up message.
+
+======================================================================
+FINAL RESPONSE — MANDATORY CONTENT
+======================================================================
+
+Your final response MUST provide:
+
+1. concise engineering summary;
+
+2. confirmation of the independently reproduced V24.51 mismatch cause;
+
+3. predicted/reconstructed breakdown of the 5,049 states;
+
+4. exact validator correction made;
+
+5. whether production CUDA changed from V24.51;
+
+6. host regression results;
+
+7. actual GPU geometry results, if run;
+
+8. actual corrected 500,000-state result, if run;
+
+9. actual exact 1,000,000-ray result, if run;
+
+10. actual five-case matrix results, if run;
+
+11. complete sediment inventory;
+
+12. which sediment cases actually ran;
+
+13. sediment per-case result summary, if run;
+
+14. sediment report/CSV/JSON/plot locations;
+
+15. status of:
+
+        production_transport_validated
+        sediment_diagnostic_campaign_run
+        sediment_campaign_authorized
+
+16. final CUDA/Python ABI audit;
+
+17. anything NOT RUN and why;
+
+18. final archive structure;
+
+19. final ZIP SHA-256;
+
+20. EXACT RUN COMMANDS;
+
+21. A DOWNLOADABLE LINK TO:
+
+        CLARITAS_V24_52.zip
+
+======================================================================
+ABSOLUTE COMPLETION REQUIREMENTS
+======================================================================
+
+DO THE WORK.
+
+RETURN THE COMPLETE ZIP.
+
+RETURN THE RUN COMMANDS.
+
+DO NOT WITHHOLD THE ZIP BECAUSE CUDA IS UNAVAILABLE.
+
+DO NOT WITHHOLD THE RUN COMMANDS.
+
+DO NOT STOP AFTER ANALYSIS.
+
+DO NOT STOP AFTER HOST VALIDATION.
+
+DO NOT STOP BEFORE PACKAGING.
+
+DO NOT RETURN ONLY PATCHES.
+
+DO NOT MAKE ME PACKAGE IT.
+
+DO NOT MAKE ME ASK AGAIN FOR THE COMMANDS.
+
+DO NOT CHANGE PRODUCTION GEOMETRY UNLESS THE CORRECTED INDEPENDENT ORACLE DEMONSTRATES A REAL PRODUCTION DEFECT.
+
+IF THE CORRECTED GEOMETRY GATE PASSES, PROCEED TO THE EXACT MILLION-RAY TEST.
+
+RUN THE SEDIMENT DIAGNOSTIC CASES WHEN DIAGNOSTIC EXECUTION IS SAFE, EVEN IF PRODUCTION AUTHORIZATION LATER REMAINS FALSE.
+
+THE FINAL DELIVERABLE MUST INCLUDE:
+
+    CLARITAS_V24_52.zip
+
+AND THE EXACT COMMANDS TO RUN IT.

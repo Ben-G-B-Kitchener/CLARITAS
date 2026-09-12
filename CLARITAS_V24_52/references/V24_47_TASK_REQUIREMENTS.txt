@@ -1,0 +1,1865 @@
+You are to produce the next complete CLARITAS release:
+
+    V24.47.0
+
+THIS IS AN IMPLEMENTATION TASK.
+
+You must inspect:
+
+    CLARITAS_V24_46.zip
+
+and:
+
+    the complete REAL V24.46 GPU/results archive
+
+Then you must:
+
+    reconstruct the acrylic-cell geometry correctly
+    implement the geometry correction
+    add complete geometry validation
+    preserve all already-successful physics
+    build the complete V24.47 release
+    create CLARITAS_V24_47.zip
+    ATTACH THAT ZIP IN YOUR FINAL RESPONSE
+
+DO NOT merely suggest changes.
+
+DO NOT stop at a patch.
+
+DO NOT stop at source files.
+
+DO NOT stop because CUDA is unavailable.
+
+DO NOT stop because a validation gate fails.
+
+ZIP DELIVERY IS UNCONDITIONAL.
+
+Scientific authorization remains fail-closed.
+
+
+======================================================================
+0. COMPULSORY DELIVERABLE
+======================================================================
+
+Your final response MUST contain:
+
+    [Download CLARITAS_V24_47.zip]
+
+AND:
+
+    SHA-256 of that exact attached ZIP
+
+AND:
+
+    exact Git Bash run commands
+
+The ZIP must have this exact structure:
+
+    CLARITAS_V24_47.zip
+        CLARITAS_V24_47/
+            ...
+
+Exactly one top-level release folder.
+
+Never provide:
+
+    a flat ZIP
+    a double-nested ZIP
+    multiple alternative ZIPs
+
+If validation fails:
+
+    document the failure
+    leave production_transport_validated = false
+    leave sediment_campaign_authorized = false
+
+BUT STILL DELIVER THE ZIP.
+
+There is no circumstance in this task where a failed scientific gate is a
+reason to withhold the artifact.
+
+
+======================================================================
+1. AUTHORITATIVE STARTING POINT
+======================================================================
+
+Production base:
+
+    CLARITAS_V24_46.zip
+
+V24.47 MUST derive directly from V24.46.
+
+Also inspect the REAL V24.46 GPU/results archive.
+
+Older releases are historical regression material only.
+
+Do not rebuild production from an older version.
+
+
+======================================================================
+2. AUTHORITATIVE V24.46 RESULT
+======================================================================
+
+The exact mandatory production qualification remained:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+REAL V24.46 result:
+
+    total failed rays:
+        129
+
+ALL 129 were:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT
+    / ACRYLIC_BOUNCE_LIMIT
+
+The following previous production problems were reduced to zero:
+
+    WATER_OUTSIDE_INNER_RADIUS = 0
+
+    INVALID_MEDIUM_STATE = 0
+
+    WATER_BOUNDARY_NO_INTERSECTION = 0
+
+    WATER_NO_BOUNDARY = 0
+
+    microsurface numerical failures = 0
+
+    non-finite failures = 0
+
+The V24.46 actual-particle-centre accessibility correction therefore worked.
+
+DO NOT ALTER IT.
+
+The remaining issue is acrylic apparatus topology.
+
+
+======================================================================
+3. V24.46 FAILURE EVIDENCE
+======================================================================
+
+The V24.46 finite axial limits prevented rays travelling metres beyond the
+apparatus, but 129 rays still reached the acrylic bounce watchdog.
+
+Their failure states lie approximately between:
+
+    z = -0.096 m
+    and
+    z = +0.049 m
+
+The important source-level problem is that V24.46 still effectively models
+the acrylic as one cylindrical annulus spanning approximately:
+
+    ZLOWER = -0.096 m
+    to
+    ZUPPER = +0.049 m
+
+and exposes:
+
+    r = Rin
+
+as an acrylic/water cylindrical boundary throughout too much of that interval.
+
+That is topologically wrong in the bottom-disc region.
+
+
+======================================================================
+4. THE GEOMETRY ERROR MUST BE FIXED AT THE MODEL LEVEL
+======================================================================
+
+DO NOT make another local special-case patch.
+
+DO NOT add:
+
+    if z < ...
+        do something special
+
+in scattered unrelated functions.
+
+DO NOT fix individual failed trajectories.
+
+V24.47 must explicitly model the actual connected acrylic solid.
+
+The acrylic sidewall and acrylic bottom are two geometrical regions of the
+SAME material joined into one connected body.
+
+The transport topology must reflect that.
+
+
+======================================================================
+5. RECONSTRUCT THE AUTHORITATIVE APPARATUS GEOMETRY FIRST
+======================================================================
+
+BEFORE editing transport code:
+
+inspect all authoritative apparatus geometry constants and determine exactly:
+
+    water inner radius Rin
+
+    acrylic outer radius Rout
+
+    water-bottom elevation ZMIN
+
+    bottom acrylic thickness
+
+    bottom external elevation ZLOW
+
+    sidewall upper elevation ZMAX
+
+    water/free-surface geometry
+
+    external medium around sidewall
+
+    external medium below bottom
+
+    external medium above any exposed acrylic
+
+Do not rely blindly on numbers in this prompt.
+
+Current values inferred from the V24.46 implementation/results are
+approximately:
+
+    Rin    = 0.0465 m
+    Rout   = 0.0500 m
+    ZMIN   = -0.093 m
+    ZLOW   = -0.096 m
+    ZMAX   = +0.049 m
+
+VERIFY THESE FROM SOURCE.
+
+Create one authoritative geometry definition.
+
+Do not duplicate slightly different constants in multiple CUDA/Python
+functions.
+
+
+======================================================================
+6. CORRECT CONNECTED-SOLID TOPOLOGY
+======================================================================
+
+Conceptually the acrylic solid is the UNION of:
+
+A. SIDEWALL ACRYLIC
+
+    Rin <= r <= Rout
+
+    ZMIN <= z <= ZMAX
+
+and:
+
+B. BOTTOM-DISC ACRYLIC
+
+    0 <= r <= Rout
+
+    ZLOW <= z <= ZMIN
+
+The precise equality/tolerance treatment must be defined carefully.
+
+The result is one connected acrylic solid.
+
+
+======================================================================
+7. CRITICAL INNER-RADIUS RULE
+======================================================================
+
+The cylindrical surface:
+
+    r = Rin
+
+is an acrylic/water interface ONLY where water physically exists beside it.
+
+Conceptually:
+
+    for z > ZMIN within the water-containing sidewall interval:
+
+        r = Rin
+        is acrylic <-> water
+
+BUT:
+
+    for ZLOW < z < ZMIN:
+
+        r = Rin
+        IS NOT A PHYSICAL INTERFACE
+
+because the bottom region is solid acrylic on BOTH sides.
+
+This is the central V24.46 geometry defect.
+
+V24.47 must explicitly prove that:
+
+    r = Rin below ZMIN
+
+cannot generate:
+
+    reflection
+    refraction
+    Fresnel probability
+    RNG draw
+    medium transition
+    event code
+
+It is interior acrylic.
+
+
+======================================================================
+8. CRITICAL TOP-OF-BOTTOM-DISC RULE
+======================================================================
+
+At:
+
+    z = ZMIN
+
+the topology depends on radius.
+
+For:
+
+    r < Rin
+
+there is a real:
+
+    acrylic <-> water
+
+interface on top of the bottom disc.
+
+For:
+
+    Rin < r < Rout
+
+there is NO optical interface.
+
+That area is the contiguous join between:
+
+    bottom acrylic
+
+and:
+
+    sidewall acrylic
+
+It remains acrylic.
+
+No Fresnel calculation.
+
+No reflection.
+
+No refraction.
+
+No random draw.
+
+No optical event.
+
+
+======================================================================
+9. OUTER ACRYLIC BOUNDARY
+======================================================================
+
+At:
+
+    r = Rout
+
+there is a genuine external acrylic boundary where appropriate.
+
+It must exist through the physical axial extent of the acrylic solid.
+
+Use the actual external medium already defined by CLARITAS.
+
+Do not invent a new medium.
+
+
+======================================================================
+10. BOTTOM EXTERNAL BOUNDARY
+======================================================================
+
+At:
+
+    z = ZLOW
+
+for:
+
+    r < Rout
+
+there is the physical bottom external face of the acrylic.
+
+Use the correct existing acrylic/external-medium Fresnel physics.
+
+Do not continue acrylic transport below this surface.
+
+
+======================================================================
+11. UPPER SIDEWALL BOUNDARY
+======================================================================
+
+At:
+
+    z = ZMAX
+
+for points belonging to the sidewall acrylic:
+
+    Rin < r < Rout
+
+apply the physically correct upper boundary.
+
+Determine the neighboring medium from the real apparatus model.
+
+Do not guess.
+
+
+======================================================================
+12. DO NOT MODEL THE UNION AS A RECTANGULAR CYLINDRICAL SHELL
+======================================================================
+
+The following simplified domain is WRONG:
+
+    Rin < r < Rout
+    ZLOW < z < ZMAX
+
+because it creates an imaginary cylindrical cavity below ZMIN.
+
+Do not use that geometry.
+
+The acrylic is an L-shaped/connected axisymmetric solid in an r-z section,
+not one rectangular annulus.
+
+
+======================================================================
+13. PREFER A SINGLE CONNECTED ACRYLIC TRANSPORT ROUTINE
+======================================================================
+
+Strongly prefer replacing the conceptual split:
+
+    acrylic_annulus_ex()
+    bottom_acrylic_disc_ex()
+
+with one coherent topology-aware acrylic transport implementation, or a
+shared geometry kernel used by both.
+
+For example, conceptually:
+
+    acrylic_next_boundary(...)
+
+should determine, from the current point and direction:
+
+    which part of the connected acrylic volume the ray occupies
+
+    every physically reachable candidate surface
+
+    nearest positive physical boundary
+
+    whether that boundary is:
+        acrylic-water
+        acrylic-external
+        acrylic-acrylic internal seam
+
+The last category must never produce an optical interaction.
+
+The exact software organization may differ, but there must be ONE coherent
+source of geometric truth.
+
+
+======================================================================
+14. EXPLICIT REGION CLASSIFICATION
+======================================================================
+
+Implement/test an explicit region classifier equivalent to:
+
+    WATER
+
+    ACRYLIC_SIDEWALL
+
+    ACRYLIC_BOTTOM
+
+    EXTERNAL
+
+and any additional real apparatus region required by the existing model.
+
+The classifier must correctly handle:
+
+    bulk points
+    boundaries
+    seam-adjacent points
+    floating-point-scale offsets
+
+Do not infer region purely from the last function that happened to run.
+
+
+======================================================================
+15. STATE TRANSITIONS MUST FOLLOW TOPOLOGY
+======================================================================
+
+Examples:
+
+SIDEWALL -> BOTTOM through their contiguous seam:
+
+    acrylic -> acrylic
+    no optical event
+
+BOTTOM -> SIDEWALL through their contiguous seam:
+
+    acrylic -> acrylic
+    no optical event
+
+BOTTOM -> WATER through top aperture:
+
+    real optical interface
+
+SIDEWALL -> WATER through inner wall:
+
+    real optical interface
+
+ACRYLIC -> EXTERNAL through Rout/ZLOW/ZMAX as applicable:
+
+    real optical interface
+
+Define these transitions deliberately.
+
+
+======================================================================
+16. NEAREST PHYSICAL BOUNDARY
+======================================================================
+
+At each acrylic propagation step:
+
+    compute all relevant candidate intersections
+
+    determine whether each candidate surface physically exists at the
+    candidate location
+
+    discard surfaces that are only mathematical extensions
+
+    choose the nearest valid forward PHYSICAL boundary
+
+Do not calculate an infinite cylinder and assume the hit exists everywhere
+along z.
+
+Do not calculate an infinite plane and assume it exists at every radius.
+
+
+======================================================================
+17. FINITE SURFACE PATCHES
+======================================================================
+
+Every surface must have its real finite support.
+
+Examples:
+
+INNER WATER WALL:
+
+    r = Rin
+    only over the real water-side axial interval
+
+BOTTOM WATER APERTURE:
+
+    z = ZMIN
+    only for r < Rin
+
+BOTTOM/SIDEWALL ACRYLIC SEAM:
+
+    z = ZMIN
+    Rin < r < Rout
+    not an optical boundary
+
+OUTER WALL:
+
+    r = Rout
+    over appropriate acrylic z range
+
+BOTTOM EXTERNAL FACE:
+
+    z = ZLOW
+    r < Rout
+
+UPPER SIDEWALL FACE:
+
+    z = ZMAX
+    Rin < r < Rout
+
+Do not use infinite primitive surfaces without checking finite support.
+
+
+======================================================================
+18. CORNER AND EDGE OWNERSHIP
+======================================================================
+
+Explicitly define deterministic topology at:
+
+    r = Rin, z = ZMIN
+
+    r = Rout, z = ZMIN
+
+    r = Rout, z = ZLOW
+
+    r = Rout, z = ZMAX
+
+and any free-surface/sidewall junction.
+
+Simultaneous/near-simultaneous hits must have deterministic classification
+based on physical topology.
+
+Do not depend on arbitrary floating-point comparison ordering.
+
+
+======================================================================
+19. NUMERICAL POSITIONING
+======================================================================
+
+Retain the successful V24.44/V24.46 distinction between:
+
+    physical intersection validity
+
+and:
+
+    post-interface positioning/self-hit prevention.
+
+Do not reintroduce:
+
+    t > EPS_F
+
+as the definition of a valid physical intersection.
+
+Use side-aware positioning and machine-scale reasoning.
+
+Do not make broad geometry snaps.
+
+
+======================================================================
+20. NO MORE SIMPLE GEOMETRY PATCHES
+======================================================================
+
+Before implementing CUDA, create an explicit table in documentation/code
+comments describing every cell boundary:
+
+    surface
+    mathematical primitive
+    finite support
+    medium on side A
+    medium on side B
+    optical interface yes/no
+
+Use this as the topology specification.
+
+The implementation and host reference must both be audited against this
+table.
+
+This is compulsory.
+
+
+======================================================================
+21. INDEPENDENT HOST GEOMETRY REFERENCE
+======================================================================
+
+Create a genuinely independent double-precision host reference for the
+connected acrylic solid.
+
+It must NOT simply transliterate the CUDA routine line-for-line.
+
+It must independently:
+
+    classify current region
+
+    enumerate physically supported surfaces
+
+    calculate candidate intersections
+
+    determine nearest physical boundary
+
+    determine destination region
+
+    identify whether optical interaction exists
+
+Use this as the geometry oracle for GPU validation.
+
+
+======================================================================
+22. DETERMINISTIC TOPOLOGY TEST MATRIX
+======================================================================
+
+Build a comprehensive deterministic matrix.
+
+Test starts in:
+
+    water
+
+    sidewall acrylic
+
+    bottom acrylic
+
+    external region where relevant
+
+For each relevant region test directions:
+
+    +x / radial outward
+    radial inward
+    +z
+    -z
+    oblique upward
+    oblique downward
+    near tangent
+
+Include states near:
+
+    Rin
+    Rout
+    ZMIN
+    ZLOW
+    ZMAX
+
+and every seam/corner.
+
+
+======================================================================
+23. SPECIFIC BOTTOM-DISC TESTS
+======================================================================
+
+Verify from bottom acrylic:
+
+A.
+
+    ray rises at r < Rin
+
+Expected:
+
+    acrylic -> water interface
+
+B.
+
+    ray rises at Rin < r < Rout
+
+Expected:
+
+    contiguous acrylic sidewall
+    NO optical event
+
+C.
+
+    ray moves radially across Rin while z < ZMIN
+
+Expected:
+
+    remains acrylic
+    NO optical event
+
+D.
+
+    ray reaches Rout before another surface
+
+Expected:
+
+    real external boundary
+
+E.
+
+    ray travels downward to ZLOW
+
+Expected:
+
+    real bottom external boundary
+
+
+======================================================================
+24. SPECIFIC SIDEWALL TESTS
+======================================================================
+
+From sidewall acrylic above ZMIN verify:
+
+    inward hit at Rin
+        -> water interface
+
+    outward hit at Rout
+        -> external interface
+
+    downward path reaching ZMIN in annulus
+        -> transition into bottom acrylic
+        -> NO optical event
+
+    upward path reaching ZMAX
+        -> real upper boundary
+
+
+======================================================================
+25. REGRESSION FOR THE EXACT V24.46 TOPOLOGY BUG
+======================================================================
+
+Construct a test where:
+
+    ray is below ZMIN
+
+and mathematically crosses:
+
+    r = Rin
+
+The V24.46-style rectangular annulus model must incorrectly identify a
+water interface.
+
+V24.47 must demonstrate:
+
+    no interface
+    same acrylic medium
+    no Fresnel
+    no RNG consumption
+
+This is compulsory.
+
+
+======================================================================
+26. RANDOMIZED FULL CONNECTED-SOLID STRESS
+======================================================================
+
+Run at least:
+
+    500000
+
+deterministically seeded geometry states across the full acrylic union.
+
+Do not test only the sidewall shell.
+
+Sample both:
+
+    bottom acrylic
+    sidewall acrylic
+
+with emphasis near:
+
+    Rin/ZMIN junction
+    Rout/ZMIN junction
+    ZLOW
+    ZMAX
+
+Compare production/shared GPU result against the independent double host
+reference.
+
+Require:
+
+    zero region mismatches
+    zero boundary-type mismatches
+    zero interface/no-interface mismatches
+    zero destination-medium mismatches
+
+Numerical distance differences must remain within justified floating-point
+tolerance.
+
+
+======================================================================
+27. FULL-PATH VALIDATION, NOT JUST ONE-STEP VALIDATION
+======================================================================
+
+V24.46's one-step geometry validation was insufficient.
+
+V24.47 MUST add multi-interaction path tests.
+
+Launch rays inside acrylic and follow them through:
+
+    many reflections
+    TIR sequences
+    sidewall-bottom transitions
+    bottom-sidewall transitions
+
+until they:
+
+    enter water
+    exit acrylic to the external medium
+    or reach a genuine execution watchdog
+
+Compare full path outcome against an independent host/reference tracer.
+
+
+======================================================================
+28. USE THE 129 REAL V24.46 FAILURES AS REGRESSION RAYS
+======================================================================
+
+The REAL V24.46 results contain 129 failed ray snapshots.
+
+Incorporate these as a mandatory historical regression dataset where
+sufficient state was recorded.
+
+For every reproducible failed state:
+
+    feed position/direction/state into V24.47 acrylic transport
+
+Require:
+
+    no ACRYLIC_ANNULUS_BOUNCE_LIMIT
+
+and a valid physical eventual outcome.
+
+The previously observed analysis indicates:
+
+    approximately 128 / 129
+
+should eventually find a non-TIR acrylic->water opportunity at the top of
+the bottom disc
+
+and:
+
+    approximately 1 / 129
+
+should eventually reach a non-TIR upper acrylic/external interface.
+
+REVERIFY THIS.
+
+Do not blindly bake those numbers into physics.
+
+
+======================================================================
+29. LONG-LIVED TIR PATHS ARE NOT NUMERICAL FAILURES
+======================================================================
+
+The V24.46 regression analysis indicates valid acrylic trajectories may
+experience hundreds or potentially over a thousand physical surface
+encounters before escape/refraction.
+
+Therefore:
+
+    64 physical reflections
+
+must NOT automatically imply an invalid ray.
+
+The existing bounce counter must no longer function as a scientific
+validity criterion.
+
+
+======================================================================
+30. WATCHDOG SEMANTICS
+======================================================================
+
+Retain a watchdog only as protection against:
+
+    programming loops
+    non-progressing state
+    repeating identical state
+    NaN/Inf
+    impossible topology
+    excessive execution caused by a bug
+
+Do NOT define a valid ray as invalid merely because it undergoes more than 64
+real TIR reflections.
+
+
+======================================================================
+31. PROGRESS-BASED WATCHDOG
+======================================================================
+
+Prefer watchdog logic that detects lack of progress rather than counting
+legitimate optical interactions.
+
+For example, detect:
+
+    repeated same surface/state with no physical displacement
+
+    repeated identical or nearly identical state cycle
+
+    non-increasing transport progression
+
+    pathological near-zero repeated intersection
+
+A high absolute emergency cap may remain, but it should be an execution
+safety limit far above the physically observed valid path lengths.
+
+Any new cap must be justified from stress testing, not chosen simply to make
+129 failures disappear.
+
+
+======================================================================
+32. OPTIONAL SAFE ACCELERATION OF TIR SEQUENCES
+======================================================================
+
+If useful, mathematically accelerate deterministic runs of repeated TIR
+between cylindrical surfaces.
+
+BUT ONLY if exact equivalence can be demonstrated.
+
+An acceleration must preserve:
+
+    exact physical exit/topology event
+
+    direction
+
+    phase-space trajectory relevant to subsequent transport
+
+    RNG sequence
+
+No RNG should be consumed by deterministic TIR itself if none was consumed
+previously.
+
+Do not implement approximate fast-forwarding merely for performance.
+
+A straightforward correct loop is preferable to a clever incorrect one.
+
+
+======================================================================
+33. TIR STRESS
+======================================================================
+
+Add long-path tests deliberately generating:
+
+    >64 reflections
+    >128 reflections
+    >256 reflections
+    >512 reflections
+    >1024 reflections where physically possible
+
+Require valid paths to complete without being labelled numerical failures.
+
+Also include a deliberately non-progressing broken-state regression to prove
+the execution watchdog still catches actual loops.
+
+
+======================================================================
+34. DO NOT CHANGE PARTICLE-PLACEMENT PHYSICS
+======================================================================
+
+V24.46 reduced:
+
+    WATER_OUTSIDE_INNER_RADIUS
+
+to:
+
+    0
+
+The actual sampled particle-centre accessibility fix is therefore frozen.
+
+Retain:
+
+    single-sample particle geometry
+    actual-centre accessibility
+    null proposal treatment
+    bulk V24.29 event-rate physics
+    particle diagnostics
+
+Do not modify this subsystem unless an independent regression demonstrates a
+new defect.
+
+
+======================================================================
+35. DO NOT CHANGE SMITH-BECKMANN PHYSICS
+======================================================================
+
+Retain byte-identically where practical:
+
+    Smith-Beckmann microsurface random walk
+    Smith Lambda
+    log-domain height sampling
+    signed VNDF
+    direct-double ultra-grazing support
+    physical multiple scattering
+    Fresnel/Snell
+    escape handling
+    k=0
+    25-degree roughness
+
+The remaining V24.46 failure is NOT a Smith-Beckmann failure.
+
+
+======================================================================
+36. RETAIN BOUNDARY GPU VALIDATION
+======================================================================
+
+Retain:
+
+    deterministic optics
+    Smith Lambda
+    randomized height stress
+    signed VNDF
+    ultra-grazing VNDF
+    full-sphere VNDF
+    equal-index
+    forced-inside
+    smooth limit
+    probability conservation
+    microsurface watchdog zero
+    complete-kernel reciprocity
+    cross-interface reciprocity
+    legacy identity
+
+
+======================================================================
+37. RETAIN 66-BIN RECIPROCITY
+======================================================================
+
+Exactly retain:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+Total:
+
+    66
+
+Failure condition remains:
+
+    relative difference > 1%
+
+AND:
+
+    >= 5 sigma
+
+No loosening.
+
+
+======================================================================
+38. V24.47 GEOMETRY GPU VALIDATION MUST BE REAL
+======================================================================
+
+The geometry gate must actually include:
+
+    finite bottom-disc tests
+
+    sidewall tests
+
+    connected-solid seam tests
+
+    no-Rin-interface-below-ZMIN test
+
+    upper annulus boundary
+
+    lower external boundary
+
+    finite Rout surface
+
+    corner ownership
+
+    sub-EPS cylinder behavior
+
+    randomized 500k connected-solid test
+
+    multi-interaction path validation
+
+    long-lived TIR tests
+
+    real V24.46 129-ray regression
+
+    particle-placement retained tests
+
+geometry_gpu_validation_pass must be the actual conjunction of these.
+
+Do not report PASS based on an older partial suite.
+
+
+======================================================================
+39. REQUIRED GEOMETRY DECISION FIELDS
+======================================================================
+
+At minimum add/report:
+
+    geometry_region_classifier_pass
+
+    acrylic_union_topology_pass
+
+    inner_wall_finite_support_pass
+
+    bottom_water_aperture_pass
+
+    bottom_sidewall_continuity_pass
+
+    outer_wall_finite_support_pass
+
+    lower_external_face_pass
+
+    upper_sidewall_face_pass
+
+    corner_edge_ownership_pass
+
+    no_inner_interface_below_zmin_pass
+
+    connected_solid_random_stress_pass
+
+    full_path_acrylic_transport_pass
+
+    long_tir_path_pass
+
+    watchdog_progress_semantics_pass
+
+    v24_46_failed_ray_regression_pass
+
+    particle_actual_center_validation_pass
+
+    geometry_gpu_validation_pass
+
+
+======================================================================
+40. EXACT PRODUCTION QUALIFICATION REMAINS
+======================================================================
+
+Run exactly:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+V24.46 baseline:
+
+    failures = 129
+
+all:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT
+
+V24.47 target:
+
+    failures = 0
+
+
+======================================================================
+41. REQUIRED PRODUCTION ZERO COUNTS
+======================================================================
+
+Require:
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT = 0
+
+    ACRYLIC_BOUNCE_LIMIT = 0
+
+    WATER_OUTSIDE_INNER_RADIUS = 0
+
+    INVALID_MEDIUM_STATE = 0
+
+    WATER_BOUNDARY_NO_INTERSECTION = 0
+
+    WATER_NO_BOUNDARY = 0
+
+    particle-placement failure = 0
+
+    microsurface numerical failure = 0
+
+    nonfinite = 0
+
+    genuine watchdog failures = 0
+
+    topology failures = 0
+
+    all other production failure codes = 0
+
+
+======================================================================
+42. CROSS-CASE INTEGRITY MATRIX
+======================================================================
+
+After the 1,000,000-ray qualification passes, run the existing pre-
+authorization integrity matrix across all remaining canonical cases.
+
+Use:
+
+    100000 rays per additional canonical case
+
+unless the existing V24.46 definition already specifies a different
+canonical count.
+
+Require every case:
+
+    zero failures
+    zero watchdogs
+    zero non-finite states
+
+Scientific outputs from the integrity matrix must not be used for tuning.
+
+
+======================================================================
+43. AUTHORIZATION ORDER
+======================================================================
+
+The order must remain:
+
+    host/package checks
+
+    boundary GPU validation
+
+    COMPLETE V24.47 geometry GPU validation
+
+    exact 1,000,000-ray production qualification
+
+    cross-case integrity matrix
+
+    authorization receipt
+
+    H170 campaign
+
+If any scientific gate fails:
+
+    NO receipt
+    NO H170 campaign
+
+BUT:
+
+    STILL CREATE AND DELIVER CLARITAS_V24_47.zip
+
+
+======================================================================
+44. PRESERVE UNRELATED PHYSICS
+======================================================================
+
+Do not alter:
+
+    V24.29 Mie event-rate physics
+    Qsca<1 behavior
+    exact Qsca=1 behavior
+    PSDs
+    sediment concentrations
+    roughness
+    optical constants
+    particle refractive indices
+    water refractive index
+    k=0
+    vortex physics
+    wave physics
+    detector geometry
+    detector response
+    SFH213 model
+    source geometry
+    source statistics
+    H170 definitions
+    event semantics unrelated to geometry correction
+
+
+======================================================================
+45. NO TUNING
+======================================================================
+
+DO NOT:
+
+    tune H170
+
+    tune roughness
+
+    tune concentration
+
+    alter PSD
+
+    change Qsca
+
+    add empirical losses
+
+    change particle dimensions
+
+    alter detector gain
+
+The geometry must work because it is correct.
+
+
+======================================================================
+46. CUDA / PYTHON ABI
+======================================================================
+
+If kernel signatures change:
+
+    update both CUDA and Python launch interfaces
+
+    add automated ABI argument-count audit
+
+    report counts
+
+Run:
+
+    Python compilation
+    CUDA syntax/scope surrogate
+    no-bare-NAN audit
+    no-bare-INFINITY audit
+
+Do not allow stale launch tuples.
+
+
+======================================================================
+47. HOST SOURCE AUDITS
+======================================================================
+
+Add adversarial host audits proving:
+
+    acrylic is represented as connected bottom + sidewall union
+
+    r=Rin is NOT an interface below ZMIN
+
+    z=ZMIN is water interface only for r<Rin
+
+    z=ZMIN is acrylic continuity for Rin<r<Rout
+
+    Rout is finite physical outer boundary
+
+    ZLOW is finite physical lower boundary
+
+    ZMAX is finite upper sidewall boundary
+
+    no infinite primitive is used without finite-support validation
+
+    no 64-reflection scientific validity rule remains
+
+    particle actual-centre correction remains
+
+    Smith-Beckmann remains frozen
+
+    no H170 tuning exists
+
+
+======================================================================
+48. KNOWN-BAD V24.46 REGRESSION
+======================================================================
+
+Add an isolated V24.46 historical regression.
+
+It must demonstrate:
+
+    boundary physics passes
+
+    particle placement is fixed
+
+but:
+
+    connected acrylic topology is wrong
+
+and:
+
+    production qualification produces 129 annulus bounce-limit failures.
+
+Include a direct source/geometry regression showing the erroneous:
+
+    inner cylindrical water interface below ZMIN
+
+or equivalent historical behavior.
+
+Historical code must not enter production.
+
+
+======================================================================
+49. RETAIN PRIOR HISTORICAL REGRESSIONS
+======================================================================
+
+Retain isolated known-bad regressions for:
+
+    V24.36.12
+    V24.37
+    V24.38
+    V24.39
+    V24.40
+    V24.41.1
+    V24.42
+    V24.43
+    V24.44
+    V24.45
+    V24.46
+
+
+======================================================================
+50. VERSIONING
+======================================================================
+
+Up-version consistently to:
+
+    V24.47.0
+
+Canonical folder:
+
+    CLARITAS_V24_47
+
+Expected equivalents include:
+
+    claritas_tardiis_core_v24_47.py
+
+    claritas_v24_47_config.json
+
+    v24_47_model.py
+    v24_47_release.py
+    v24_47_validation.py
+    v24_47_geometry_validation.py
+    v24_47_legacy_core.py
+    v24_47_production_qualification.py
+    v24_47_integrity_matrix.py
+
+    preflight_v24_47_package.py
+    verify_v24_47_corrected_boundary.py
+    summarize_v24_47_corrected_boundary.py
+    plot_v24_47_corrected_boundary.py
+
+    run_v24_47_case.py
+    run_v24_47_campaign.py
+
+No stale V24.46 executable production module may control V24.47.
+
+
+======================================================================
+51. DOCUMENTATION
+======================================================================
+
+Update at minimum:
+
+    README.md
+    RELEASE_NOTES.txt
+    PACKAGE_MANIFEST.json
+    SHA256SUMS.txt
+
+Add an explicit acrylic topology document/table listing:
+
+    boundary
+    finite support
+    material A
+    material B
+    optical interface yes/no
+
+Document:
+
+    V24.46 real result:
+        129 failures
+        all annulus bounce-limit
+
+    particle-placement problem now zero
+
+    V24.46 rectangular-shell topology error
+
+    correct connected acrylic union
+
+    no Rin interface below ZMIN
+
+    bottom aperture behavior
+
+    acrylic continuity
+
+    watchdog redesign
+
+    long-lived valid TIR paths
+
+    retained physics
+
+
+======================================================================
+52. RESULTS OUTPUTS
+======================================================================
+
+Use:
+
+    results/
+        _boundary_validation/
+        _geometry_validation/
+        _production_qualification/
+        _integrity_matrix/
+        campaign/
+
+Geometry outputs should include at minimum equivalents of:
+
+    v24_47_region_classifier.csv
+
+    v24_47_surface_topology_matrix.csv
+
+    v24_47_deterministic_geometry.csv
+
+    v24_47_connected_solid_random_stress.csv
+
+    v24_47_full_path_validation.csv
+
+    v24_47_long_tir_validation.csv
+
+    v24_47_v24_46_failed_ray_regression.csv
+
+    v24_47_geometry_validation_decision.csv
+
+
+======================================================================
+53. ARTIFACT DELIVERY AND SCIENTIFIC VALIDATION ARE SEPARATE
+======================================================================
+
+This rule is absolute.
+
+A V24.47 candidate ZIP must be delivered even if:
+
+    CUDA is unavailable
+
+    GPU tests fail
+
+    production qualification fails
+
+    integrity matrix fails
+
+    a host validation issue remains
+
+In those cases:
+
+    record the exact failure
+
+    leave:
+        production_transport_validated = false
+
+    leave:
+        sediment_campaign_authorized = false
+
+    still create and attach:
+        CLARITAS_V24_47.zip
+
+Never fabricate a passing result.
+
+
+======================================================================
+54. PACKAGE FORMAT
+======================================================================
+
+Create exactly:
+
+    CLARITAS_V24_47.zip
+
+with:
+
+    CLARITAS_V24_47.zip
+        CLARITAS_V24_47/
+            files...
+
+Exactly one top-level folder.
+
+Not flat.
+
+Not double nested.
+
+Not multiple variants.
+
+
+======================================================================
+55. PACKAGE WORKFLOW
+======================================================================
+
+After implementation:
+
+    run preflight
+
+    run all host tests
+
+    run CUDA tests if genuine CUDA is available
+
+    fix identified packaging/programming issues where possible
+
+    update documentation
+
+    regenerate PACKAGE_MANIFEST.json
+
+    regenerate SHA256SUMS.txt
+
+Remove unintended:
+
+    results/
+    authorization receipts
+    __pycache__/
+    *.pyc
+    compiler scratch
+    temporary development files
+
+Create:
+
+    CLARITAS_V24_47.zip
+
+Then:
+
+    test ZIP integrity
+
+    clean-extract that exact ZIP
+
+    confirm one top-level CLARITAS_V24_47/
+
+    run extracted-package preflight where possible
+
+    run extracted-package host verifier where possible
+
+    verify SHA256SUMS
+
+If any validation still fails:
+
+    report it
+
+    do not authorize sediment
+
+BUT STILL DELIVER THE ZIP.
+
+
+======================================================================
+56. FINAL ZIP SHA-256
+======================================================================
+
+Calculate SHA-256 of the exact final archive you attach:
+
+    CLARITAS_V24_47.zip
+
+Report that hash.
+
+Do not report an intermediate archive hash.
+
+
+======================================================================
+57. REQUIRED USER RUN COMMANDS
+======================================================================
+
+The final response MUST contain exactly usable Git Bash commands:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_47"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_47_package.py && \
+    python verify_v24_47_corrected_boundary.py && \
+    python run_v24_47_campaign.py
+
+
+======================================================================
+58. FINAL RESPONSE MUST REPORT
+======================================================================
+
+Report concisely:
+
+    what V24.47 changed
+
+    authoritative acrylic topology
+
+    confirmation:
+        no Rin water interface below ZMIN
+
+    confirmation:
+        bottom-disc/sidewall acrylic continuity
+
+    finite surface support implementation
+
+    watchdog redesign
+
+    full-path validation implementation
+
+    129-ray V24.46 regression implementation
+
+    confirmation particle actual-centre code retained
+
+    confirmation Smith-Beckmann retained
+
+    host validation result
+
+    GPU geometry validation result if actually run
+
+    boundary GPU result if actually run
+
+    million-ray production qualification result if actually run
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT count if actually run
+
+    all other production failure counts if actually run
+
+    integrity matrix result if actually run
+
+    production_transport_validated
+
+    sediment_campaign_authorized
+
+    unresolved validation issues if any
+
+    final ZIP SHA-256
+
+    download link
+
+    run commands
+
+
+======================================================================
+59. SCIENTIFIC AUTHORIZATION CONDITION
+======================================================================
+
+Only allow:
+
+    sediment_campaign_authorized = true
+
+if:
+
+    boundary GPU validation passes
+
+AND:
+
+    complete connected-solid geometry validation passes
+
+AND:
+
+    exact 1,000,000-ray qualification has zero failures
+
+AND:
+
+    cross-case integrity matrix has zero failures
+
+AND:
+
+    watchdogs and nonfinite counts are zero
+
+AND:
+
+    receipt hashes are valid.
+
+Anything else remains fail-closed.
+
+
+======================================================================
+60. NO MORE SIMPLE MISTAKES — REQUIRED SELF-REVIEW
+======================================================================
+
+Before packaging, perform an explicit adversarial geometry review.
+
+Ask and verify in code/tests:
+
+    Does every mathematical surface have finite physical support?
+
+    Is Rin incorrectly treated as an interface anywhere below ZMIN?
+
+    Is ZMIN incorrectly treated as an interface in the annular acrylic seam?
+
+    Can any ray enter a region that the region classifier says is impossible?
+
+    Can acrylic transport leave the connected solid without a real interface?
+
+    Can it cross between bottom and sidewall acrylic with a fake interface?
+
+    Can a valid TIR path be killed just because it has many reflections?
+
+    Are the host reference and CUDA implementation independently formulated?
+
+    Does geometry_gpu_validation_pass really include every new geometry test?
+
+    Are the real V24.46 failure states explicitly exercised?
+
+Do not package until this review has been performed.
+
+However, if some validation still truthfully fails after implementation:
+
+    PACKAGE AND DELIVER THE ZIP ANYWAY
+
+with authorization false.
+
+
+======================================================================
+61. ABSOLUTE NON-NEGOTIABLE DELIVERY RULE
+======================================================================
+
+THE TASK ALWAYS ENDS WITH AN ATTACHED ZIP.
+
+The final response must contain:
+
+    [Download CLARITAS_V24_47.zip]
+
+plus the exact SHA-256 of that ZIP.
+
+A failed validation changes authorization state.
+
+It does NOT cancel artifact delivery.
+
+DO NOT WAIT FOR THE USER TO ASK:
+
+    "zip now"
+
+DO NOT REQUIRE ANOTHER TURN.
+
+CREATE AND ATTACH THE ZIP IN THIS TASK.

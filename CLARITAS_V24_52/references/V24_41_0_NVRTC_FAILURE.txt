@@ -1,0 +1,132 @@
+Ben@DESKTOP-JHCSTB7  /f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_41
+$ rm -rf ~/.cupy/kernel_cache
+rm -rf ~/.cupy/jitify_cache
+rm -rf results
+rm -rf __pycache__
+
+python preflight_v24_41_package.py && \
+python verify_v24_41_corrected_boundary.py && \
+python run_v24_41_campaign.py
+PASS package preflight: V24.41.0 candidate complete; 99 critical files hashed; stable-Lambda/log-height numerically robust signed Smith-Beckmann dielectric microsurface walk present; frozen V24.29 event-rate/legacy, 25-degree roughness, k=0, explicit failure subcodes and fail-only 4096 watchdogs pass; NumPy compatibility audit passes; longest default path 137 chars (<240)
+PASS package preflight: V24.41.0 candidate complete; 99 critical files hashed; stable-Lambda/log-height numerically robust signed Smith-Beckmann dielectric microsurface walk present; frozen V24.29 event-rate/legacy, 25-degree roughness, k=0, explicit failure subcodes and fail-only 4096 watchdogs pass; NumPy compatibility audit passes; longest default path 137 chars (<240)
+PASS host: all runtime Python compiles in memory; canonical verifier writes no package-tree bytecode
+PASS host: frozen V24.29 event-rate/legacy state retained; 25-degree roughness and k=0 retained; macro and microsurface 4096 limits are fail-only watchdogs
+PASS host: V24.41 production sphere, spheroid and wave rough-particle paths retain the Smith-Beckmann dielectric microsurface walk with numerically complete signed-VNDF tails; V24.37 support-resampling, V24.38 invalid lower-side rejection, V24.39 tail truncation and stochastic geometric fallback are absent
+PASS host: authoritative V24.36.12 >70% macro-TIR defect regression retained
+PASS host: real V24.37 GPU failure baseline retained (kaolin 19.46%, loess 18.89%; cross-interface max >48%); validation-only V24.37 candidate regression is isolated from production
+PASS host: real V24.38 GPU defect baseline retained (equal-index 3278/30000=10.927%; kaolin 11.75%, loess 10.50% complete-kernel residual); isolated V24.38 known-bad regression is validation-only
+PASS host: real V24.39 GPU baseline retained (all 66 reciprocity bins and all cross-interface states passed; equal-index 281/30000; probability numerical failures 34104/990000); isolated V24.39 tail-truncation regression is validation-only
+PASS host: real V24.40 GPU baseline retained (66-bin/cross-interface reciprocity passed; equal-index 280/30000 height failures; probability numerical failures 34187/990000; 122915 HEIGHT_CDF_INVALID; ultra-grazing VNDF 903/12000)
+PASS host: NumPy compatibility audit requires no removed trapezoidal integration alias; analytical VNDF reference moments execute across front and deep-backside states
+PASS host: deterministic fixed-microfacet reflection/refraction/Fresnel reciprocity baseline retained
+PASS host: corrected CUDA is byte-identical to frozen legacy outside the explicitly replaced sphere-boundary and spheroid rough-interface functions; optics/event-rate data unchanged
+PASS host: event code 7, exact Qsca=1 boundary, native-mu edges and stable-vector Snell regression retained
+PASS host: validation CUDA includes complete-kernel reciprocity, real production-path survival, stable-Lambda/randomized-height, ultra-grazing/full-sphere VNDF, equal-index/forced-inside gates, detailed failure subcodes, and isolated V24.37-V24.40 known-bad kernels; no bare NAN/INFINITY
+PASS Windows path/orchestration: longest default path 127 chars (<240); Python-only children use sys.executable; no nested Bash
+PASS host: corrected production CUDA plus V24.41 validation CUDA pass C++ syntax/scope surrogate
+PASS plots: V24.41 validation plots written
+PASS host: validation writers -> summarizer -> decision -> plotter execute end-to-end; host smoke cannot authorize sediment transport; independent reporting flags remain factual
+PASS host: campaign rejects missing and host-only/non-authorizing receipts; H170 cannot run before real GPU process validation
+PASS host: pre-existing non-writable __pycache__ is untouched
+PASS host: adversarial review finds stable V24.41 Lambda/log-height and double ultra-grazing VNDF production paths; no support-resampling, invalid-side rejection, arbitrary tail truncation, unstable V24.40 height pow arithmetic, stochastic fallback, numerical-error-as-escape, H170 tuning, empirical loss, stale executable modules, nested shell handoff, or package-tree pyc dependency
+INFO GPU: validating V24.41 stable Smith-Lambda/log-height + ultra-grazing double-precision Smith-Beckmann production boundary; sediment transport remains gated.
+C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\_environment.py:286: UserWarning: CUDA path could not be detected. Set CUDA_PATH environment variable if CuPy fails to load.
+  warnings.warn(
+Traceback (most recent call last):
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 860, in compile
+    nvrtc.compileProgram(self.ptr, options)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "cupy_backends/cuda/libs/nvrtc.pyx", line 125, in cupy_backends.cuda.libs.nvrtc.compileProgram
+  File "cupy_backends/cuda/libs/nvrtc.pyx", line 138, in cupy_backends.cuda.libs.nvrtc.compileProgram
+  File "cupy_backends/cuda/libs/nvrtc.pyx", line 53, in cupy_backends.cuda.libs.nvrtc.check_status
+cupy_backends.cuda.libs.nvrtc.NVRTCError: NVRTC_ERROR_COMPILATION (6)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\Google Drive Sync\CLARITAS_code\CLARITAS\CLARITAS_V24_41\verify_v24_41_corrected_boundary.py", line 203, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "F:\Google Drive Sync\CLARITAS_code\CLARITAS\CLARITAS_V24_41\verify_v24_41_corrected_boundary.py", line 202, in main
+    if not a.host_only:gpu(a.samples_per_bin)
+                       ~~~^^^^^^^^^^^^^^^^^^^
+  File "F:\Google Drive Sync\CLARITAS_code\CLARITAS\CLARITAS_V24_41\verify_v24_41_corrected_boundary.py", line 195, in gpu
+    out=HERE/'results';print('INFO GPU: validating V24.41 stable Smith-Lambda/log-height + ultra-grazing double-precision Smith-Beckmann production boundary; sediment transport remains gated.');t=time.perf_counter();meta=val.acquire_gpu(out,samples);r=summarize(out);subprocess.run([sys.executable,str(HERE/'plot_v24_41_corrected_boundary.py'),str(out)],cwd=HERE,check=True);d=r['decision']
+                                                                                                                                                                                                                             ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "F:\Google Drive Sync\CLARITAS_code\CLARITAS\CLARITAS_V24_41\v24_41_validation.py", line 198, in acquire_gpu
+    kr,kp,kl,kv,kfs,ki,kh,klam,khstress,kb37,kb38,kb39,kb40=(mod.get_function(n) for n in names);cp.cuda.Stream.null.synchronize();compile_s=time.perf_counter()-t
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\Google Drive Sync\CLARITAS_code\CLARITAS\CLARITAS_V24_41\v24_41_validation.py", line 198, in <genexpr>
+    kr,kp,kl,kv,kfs,ki,kh,klam,khstress,kb37,kb38,kb39,kb40=(mod.get_function(n) for n in names);cp.cuda.Stream.null.synchronize();compile_s=time.perf_counter()-t
+                                                             ~~~~~~~~~~~~~~~~^^^
+  File "cupy/_core/raw.pyx", line 498, in cupy._core.raw.RawModule.get_function
+  File "cupy/_core/raw.pyx", line 108, in cupy._core.raw.RawKernel.kernel.__get__
+  File "cupy/_core/raw.pyx", line 125, in cupy._core.raw.RawKernel._kernel
+  File "cupy/_util.pyx", line 67, in cupy._util.memoize.decorator.ret
+  File "cupy/_core/raw.pyx", line 549, in cupy._core.raw._get_raw_module
+  File "cupy/_core/core.pyx", line 2621, in cupy._core.core.compile_with_cache
+  File "cupy/_core/core.pyx", line 2639, in cupy._core.core.compile_with_cache
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 649, in _compile_module_with_cache
+    return _compile_with_cache_cuda(
+        source, options, arch, extra_source, backend,
+        enable_cooperative_groups, name_expressions, log_stream,
+        cache_in_memory, jitify, to_ltoir)
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 748, in _compile_with_cache_cuda
+    ptx, mapping = _compile_using_nvrtc_no_warning(
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        source, options, arch, cu_name, name_expressions,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        log_stream, cache_in_memory, jitify, 'lto' if to_ltoir else None)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 402, in _compile_using_nvrtc_no_warning
+    return _compile(source, options, cu_path, name_expressions,
+                    log_stream, jitify, method)
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 384, in _compile
+    compiled_obj, mapping = prog.compile(options, log_stream)
+                            ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Ben\miniconda3\envs\claritas\Lib\site-packages\cupy\cuda\compiler.py", line 879, in compile
+    raise CompileException(log, self.src, self.name, options,
+                           'nvrtc' if not runtime.is_hip else 'hiprtc')
+cupy.cuda.compiler.CompileException: C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(872): error: identifier "NAN" is undefined
+      if(!isfinite(c)||!isfinite(alpha)||!(alpha>=0.0f))return NAN;
+                                                               ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(876): error: identifier "INFINITY" is undefined
+      if(c==0.0)return copysign(INFINITY,c>=0.0?1.0:-1.0);
+                                ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(882): error: identifier "NAN" is undefined
+      if(!(B>0.0)||!isfinite(B))return NAN;
+                                       ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(887): error: identifier "NAN" is undefined
+      if(!(lp>=0.0)||!isfinite(lp))return NAN;
+                                          ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(892): error: identifier "NAN" is undefined
+      if(isnan(l))return NAN;
+                         ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(893): error: identifier "INFINITY" is undefined
+      if(isinf(l))return l>0.0?INFINITY:-INFINITY;
+                               ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(2957): warning #177-D: variable "wix" was declared but never referenced
+   float h=1.0f+smith_uniform_invC1(0.999f);int outside=1,o=0;for(int it=0;it<4096;++it){float nh=0;int hs;if(outside){hs=smith_sample_height(s,dx,dy,dz,0,0,1,alpha,h,&nh);if(hs==MICRO_ESCAPE){*order=o;return 1;}}else{float tmp=0;hs=smith_sample_height(s,-dx,-dy,-dz,0,0,1,alpha,-h,&tmp);if(hs==MICRO_ESCAPE){*order=o;return 1;}if(hs==MICRO_INTERSECTION)nh=-tmp;}if(hs!=MICRO_INTERSECTION){*order=o;return 0;}h=nh;++o;float wix=-dx,wiy=-dy,wiz=-dz;float sbz=outside?1.0f:-1.0f;if(wiz*sbz<=0.0f){*order=o;return 0;}outside=1-outside;}*order=o;return 0;
+                                                                                                                                                                                                                                                                                                                                                                                                                                        ^
+
+Remark: The warnings can be suppressed with "-diag-suppress <warning-number>"
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(2957): warning #177-D: variable "wiy" was declared but never referenced
+   float h=1.0f+smith_uniform_invC1(0.999f);int outside=1,o=0;for(int it=0;it<4096;++it){float nh=0;int hs;if(outside){hs=smith_sample_height(s,dx,dy,dz,0,0,1,alpha,h,&nh);if(hs==MICRO_ESCAPE){*order=o;return 1;}}else{float tmp=0;hs=smith_sample_height(s,-dx,-dy,-dz,0,0,1,alpha,-h,&tmp);if(hs==MICRO_ESCAPE){*order=o;return 1;}if(hs==MICRO_INTERSECTION)nh=-tmp;}if(hs!=MICRO_INTERSECTION){*order=o;return 0;}h=nh;++o;float wix=-dx,wiy=-dy,wiz=-dz;float sbz=outside?1.0f:-1.0f;if(wiz*sbz<=0.0f){*order=o;return 0;}outside=1-outside;}*order=o;return 0;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                ^
+
+C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu(2965): warning #177-D: variable "my" was declared but never referenced
+  __global__ void v39_bad_deep_backside_kernel(int N,float alpha,unsigned int seed,int* ok){int id=(int)(blockDim.x*blockIdx.x+threadIdx.x);if(id>=N)return;unsigned int s=seed+(unsigned int)id*2246822519u+71u;if(s==0)s=1u;float wz=-0.90f,wx=sqrtf(1-wz*wz),sxv=alpha*wx,vl=sqrtf(sxv*sxv+wz*wz),sz=wz/vl,theta=acosf(fminf(fmaxf(sz,-1.0f),1.0f));float sx=0,sy=0;int st=v39_bad_sample11(theta,rnd_uniform(&s),rnd_uniform(&s),&sx,&sy);sx*=alpha;sy*=alpha;float inv=rsqrtf(sx*sx+sy*sy+1.0f),mx=-sx*inv,my=-sy*inv,mz=inv;double vd=(double)wx*mx+(double)wz*mz;ok[id]=(st&&vd>0.0&&mz>0.0f)?1:0;}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ^
+
+6 errors detected in the compilation of "C:\Users\Ben\AppData\Local\Temp\tmp0p6r6p5w\ff3c4ff2a4266d49c315327a6d5c89c968c9580b.cubin.cu".
+
+(claritas) 
+Ben@DESKTOP-JHCSTB7  /f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_41
+$ 

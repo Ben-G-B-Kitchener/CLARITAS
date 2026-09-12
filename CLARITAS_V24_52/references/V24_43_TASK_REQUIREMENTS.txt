@@ -1,0 +1,1737 @@
+You are to produce the next complete CLARITAS release:
+
+    V24.43.0
+
+THIS IS AN IMPLEMENTATION TASK, NOT AN ADVISORY, REVIEW, OR PATCH-SUGGESTION TASK.
+
+You must inspect the supplied V24.42 source package and the REAL user-side V24.42 execution log/results, implement the required production-qualification and diagnostic corrections, run every host-side validation available to you, construct the complete release package, and RETURN A DOWNLOADABLE ZIP FILE.
+
+A ZIP FILE IS COMPULSORY.
+
+THE TASK IS NOT COMPLETE UNTIL THE FINAL RESPONSE CONTAINS:
+
+    1. a downloadable CLARITAS_V24_43.zip
+    2. the final ZIP SHA-256
+    3. exact copy-paste-ready Git Bash run commands
+
+Do not finish with:
+
+    source files only
+    a patch
+    diffs
+    instructions for me to edit files
+    an unpackaged directory
+    a statement that packaging remains
+    multiple alternative ZIPs
+    a flat ZIP
+
+If CUDA is unavailable in your environment, this DOES NOT excuse the ZIP requirement.
+
+In that case:
+
+    implement V24.43 fully
+    run every available host test
+    truthfully leave GPU validation outstanding
+    truthfully leave production qualification outstanding
+    leave sediment authorization false
+    still create and attach CLARITAS_V24_43.zip
+    still provide the exact run commands
+
+Do not ask me to make routine implementation choices.
+
+Inspect the real V24.42 implementation before changing it.
+
+
+======================================================================
+1. AUTHORITATIVE STARTING POINT
+======================================================================
+
+PRIMARY PRODUCTION SOURCE:
+
+    CLARITAS_V24_42.zip
+
+V24.43 MUST be derived directly from V24.42.
+
+Do NOT rebuild production from older versions.
+
+Use older versions only as isolated historical regression references.
+
+Also use:
+
+    the REAL V24.42 user execution log
+
+and, if supplied:
+
+    V24.42 results/
+    prior V24.41.1 GPU results
+    prior V24.40 results
+    historical release/audit documentation
+
+
+======================================================================
+2. IMPORTANT V24.42 RESULT
+======================================================================
+
+The REAL user-side V24.42 run achieved a major milestone.
+
+V24.42:
+
+    passed package preflight
+    passed host validation
+    compiled successfully with NVRTC
+    passed the complete real-GPU boundary validation
+    passed full-domain/deep-backside VNDF
+    passed equal-index
+    passed forced-inside
+    passed height semantics
+    passed complete-kernel reciprocity
+    passed cross-interface reciprocity
+    passed V24.36-V24.41 known-bad regressions
+    passed probability/watchdog boundary gates
+    passed all 66 Qsca>=1 bins
+    passed legacy identity
+
+The verifier then reported:
+
+    PASS GPU: V24.42 ...
+
+and wrote the sediment authorization receipt.
+
+ONLY AFTER THIS did the actual production campaign begin.
+
+The first canonical production case was:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+using the real:
+
+    run_v24_42_case.py
+    production trace kernel
+    V24.42 config
+    apparatus
+    vortex/wave model
+    sediment transport
+    detector paths
+
+That case then failed with:
+
+    numerical_failure_count = 466
+
+out of:
+
+    1000000 rays
+
+approximately:
+
+    0.0466%
+
+The run correctly refused to finalize the sediment result.
+
+This means:
+
+    THE BOUNDARY PHYSICS VALIDATION PASSED
+
+but:
+
+    THE COMPLETE PRODUCTION TRANSPORT WAS NOT YET QUALIFIED.
+
+
+======================================================================
+3. DO NOT MISINTERPRET THE 466 FAILURES
+======================================================================
+
+Do NOT assume that the 466 failures are Smith-Beckmann microsurface numerical failures.
+
+Inspect the actual V24.42 code.
+
+The field currently called something like:
+
+    numerical_failure_count
+
+appears to count rays with a broad top-level status equivalent to:
+
+    status == 4
+
+But that top-level status is potentially used by multiple unrelated production failure paths.
+
+Possible branches may include, depending on the actual source:
+
+    particle rough-boundary failure
+    particle macro geometry failure
+    particle bounce/watchdog failure
+    acrylic-annulus intersection failure
+    acrylic-annulus bounce limit
+    bottom acrylic-disc propagation failure
+    cell-interface failure
+    water/interface geometry failure
+    trace iteration exhaustion
+    non-finite state
+
+Therefore:
+
+    466 status==4 rays
+
+does NOT by itself identify the physical/numerical source.
+
+V24.43 must make the complete production failure path observable BEFORE attempting speculative physics changes.
+
+
+======================================================================
+4. PRIMARY V24.43 OBJECTIVE
+======================================================================
+
+V24.43 must close the validation architecture gap.
+
+The release authorization sequence must become:
+
+    package preflight
+        |
+        v
+    host validation
+        |
+        v
+    boundary / microsurface real-GPU validation
+        |
+        v
+    FULL PRODUCTION TRANSPORT QUALIFICATION
+        |
+        v
+    production failure count == 0 ?
+        |
+        +--- NO ---> FAIL CLOSED
+        |            write diagnostics
+        |            NO authorization receipt
+        |            NO H170 campaign
+        |
+        +--- YES ---> write authorization receipt
+                         |
+                         v
+                      H170 campaign
+
+The authorization receipt MUST NOT be written before the production qualification passes.
+
+
+======================================================================
+5. PRESERVE THE SUCCESSFUL V24.42 BOUNDARY PHYSICS
+======================================================================
+
+Do NOT redesign the Smith-Beckmann physical model merely because the complete production kernel reported 466 failures.
+
+Retain unless direct evidence proves a specific defect:
+
+    Smith-Beckmann dielectric microsurface random walk
+    V24.41 stable Smith Lambda
+    log-domain Smith height sampling
+    V24.42 direct-double ultra-grazing VNDF support
+    signed/full-incidence treatment
+    physical reflection/refraction
+    physical inside/outside transitions
+    physical multiple scattering
+    physical escape
+    k = 0
+    25-degree RMS roughness
+
+V24.42 already passed the dedicated real-GPU physics suite.
+
+Do not disturb successful physics without evidence from the newly instrumented full production path.
+
+
+======================================================================
+6. AUDIT EVERY PRODUCTION FAILURE EXIT
+======================================================================
+
+Audit the COMPLETE production CUDA trace path.
+
+Find every location capable of producing:
+
+    status == 4
+
+or equivalent generic failure state.
+
+Also audit every:
+
+    return failure
+    break-on-invalid
+    iteration-limit exit
+    no-intersection exit
+    NaN/Inf rejection
+    geometry invalid state
+    macro watchdog
+    micro watchdog
+    rough-boundary failure
+
+Do not leave multiple physically distinct failure branches collapsed into one undifferentiated status.
+
+
+======================================================================
+7. ADD FULL PRODUCTION FAILURE CODES
+======================================================================
+
+Add a production transport failure-code system.
+
+Use compact CUDA-safe integer codes.
+
+The exact names/codes should follow the actual source architecture, but at minimum distinguish applicable classes equivalent to:
+
+    PROD_OK
+
+    PARTICLE_MICROSURFACE_NUMERICAL
+
+    PARTICLE_MICROSURFACE_WATCHDOG
+
+    PARTICLE_MACRO_GEOMETRY_FAILURE
+
+    PARTICLE_MACRO_NO_INTERSECTION
+
+    PARTICLE_MACRO_BOUNCE_LIMIT
+
+    ACRYLIC_ANNULUS_NO_INTERSECTION
+
+    ACRYLIC_ANNULUS_GEOMETRY_INVALID
+
+    ACRYLIC_ANNULUS_BOUNCE_LIMIT
+
+    BOTTOM_DISC_NO_INTERSECTION
+
+    BOTTOM_DISC_GEOMETRY_INVALID
+
+    BOTTOM_DISC_BOUNCE_LIMIT
+
+    CELL_INTERFACE_NO_INTERSECTION
+
+    CELL_INTERFACE_BOUNCE_LIMIT
+
+    WATER_BOUNDARY_NO_INTERSECTION
+
+    TRACE_ITERATION_LIMIT
+
+    NONFINITE_POSITION
+
+    NONFINITE_DIRECTION
+
+    INVALID_MEDIUM_STATE
+
+    INVALID_EVENT_STATE
+
+    OTHER_EXPLICIT_FAILURE
+
+Do NOT invent meaningless categories merely to fill a table.
+
+Map these to the actual production paths that exist.
+
+
+======================================================================
+8. PROPAGATE MICRO FAILURE SUBCODES
+======================================================================
+
+If the production particle microsurface walk fails, do NOT collapse:
+
+    VNDF_...
+    HEIGHT_...
+    REFRACTION_...
+    MICRO_WATCHDOG
+
+into one generic production failure.
+
+Propagate the existing V24.42 microsurface failure subcode back through:
+
+    particle function
+        ->
+    sphere/spheroid boundary
+        ->
+    production trace kernel
+        ->
+    Python result object
+        ->
+    validation CSV
+
+Retain both:
+
+    production failure stage
+
+and:
+
+    detailed microsurface subcode
+
+where applicable.
+
+
+======================================================================
+9. RETAIN HIGH-LEVEL STATUS FOR COMPATIBILITY
+======================================================================
+
+If downstream code relies on the existing high-level ray status array, retain it for compatibility.
+
+But add a separate:
+
+    production_failure_code
+
+and where useful:
+
+    production_failure_subcode
+
+Do not overload one status integer with every failure meaning.
+
+
+======================================================================
+10. FAILURE COUNT OUTPUT
+======================================================================
+
+For every production run, produce a failure summary such as:
+
+    production_failure_summary.csv
+
+containing at minimum:
+
+    failure_code
+    failure_name
+    count
+    percentage
+
+For microsurface failures also produce counts by:
+
+    micro_failure_subcode
+
+The sum of all failure-code counts must agree exactly with the top-level failed-ray count.
+
+
+======================================================================
+11. CAPTURE FAILED RAY IDS
+======================================================================
+
+Retain enough information to reproduce failures.
+
+At minimum record the ray IDs for failed rays.
+
+For a 1,000,000-ray qualification it is acceptable to maintain a per-ray compact integer failure-code array.
+
+Also record, where available:
+
+    ray_id
+    production failure code
+    micro failure subcode
+    trace iteration
+    macro bounce count
+    microsurface scatter order
+    current medium/state
+    event code
+
+Avoid enormous debug output.
+
+
+======================================================================
+12. FAIL-ONLY STATE SNAPSHOTS
+======================================================================
+
+Where practical, capture compact state snapshots for the first bounded number of failures, e.g.:
+
+    up to 256 or 512 failure rays
+
+Include useful diagnostics such as:
+
+    ray_id
+    failure stage
+    failure code
+    detailed subcode
+    x,y,z
+    dx,dy,dz
+    current medium
+    particle state/index where applicable
+    trace iteration
+    macro bounce count
+    microsurface interaction count
+
+Do not allocate an enormous trace log for every successful ray.
+
+
+======================================================================
+13. OPTIONAL DETERMINISTIC FAILURE REPLAY
+======================================================================
+
+If practical within the architecture, add a debug/replay mechanism capable of replaying selected failed:
+
+    ray_id
+
+values using the same:
+
+    seed
+    RNG convention
+    production configuration
+
+This is highly desirable because it would allow a failure ray to be reproduced without rerunning all 1,000,000 rays.
+
+Do not compromise production performance if a clean replay mechanism cannot be implemented safely.
+
+
+======================================================================
+14. DIAGNOSTICS MUST BE WRITTEN BEFORE FAILURE
+======================================================================
+
+This is compulsory.
+
+V24.42 currently aborts the case before all useful diagnostics are guaranteed to be written.
+
+V24.43 must use the sequence:
+
+    run simulation
+        |
+        v
+    collect failure/status diagnostics
+        |
+        v
+    WRITE DIAGNOSTICS TO DISK
+        |
+        v
+    evaluate validity
+        |
+        +--- invalid ---> mark case INVALID
+        |                terminate fail-closed
+        |
+        +--- valid -----> finalize scientific outputs
+
+Therefore a failed production qualification MUST still leave enough data to identify why it failed.
+
+
+======================================================================
+15. NEVER FINALIZE INVALID SEDIMENT RESULTS
+======================================================================
+
+Writing diagnostics before failure does NOT mean writing a valid sediment result.
+
+If any production numerical/watchdog/integrity failure occurs:
+
+    case_valid = false
+
+and do NOT finalize or present scientific sediment outputs as valid.
+
+It is acceptable to write files clearly named:
+
+    qualification_...
+    diagnostics_...
+    INVALID_case_metadata...
+
+But not a normal finalized H170 scientific result.
+
+
+======================================================================
+16. ADD FULL PRODUCTION QUALIFICATION MODE
+======================================================================
+
+Add an explicit:
+
+    production qualification
+
+mode.
+
+It MUST use the real production path.
+
+Do NOT make a simplified toy tracer.
+
+It must exercise the same:
+
+    trace_kernel
+    geometry
+    source
+    particle model
+    material model
+    vortex/wave transport
+    detector paths
+    rough boundary functions
+    cell interfaces
+
+used by the campaign.
+
+The only difference should be that scientific result finalization is suppressed until integrity has passed.
+
+
+======================================================================
+17. MANDATORY REGRESSION QUALIFICATION CASE
+======================================================================
+
+The exact V24.42 failing production configuration must become a mandatory pre-authorization regression gate.
+
+Use:
+
+    material:
+        loess
+
+    concentration:
+        0.5 g/L
+
+    n-rays:
+        1000000
+
+    seed:
+        2441000
+
+    configuration:
+        canonical V24.43 production config corresponding to V24.42
+
+The qualification must execute the full production kernel.
+
+Require:
+
+    production failure count = 0
+    microsurface numerical failures = 0
+    macro numerical failures = 0
+    geometry failures = 0
+    watchdog failures = 0
+    nonfinite failures = 0
+    count closure correct
+
+Do NOT reduce the ray count merely to make the test easier.
+
+
+======================================================================
+18. THIS IS A QUALIFICATION RUN, NOT AN H170 RESULT
+======================================================================
+
+The pre-authorization production qualification may use the real production geometry and canonical material configuration.
+
+However:
+
+    DO NOT use its detector/sediment result to tune anything.
+
+    DO NOT present it as an H170 scientific result.
+
+    DO NOT select parameters based on its sediment output.
+
+    DO NOT finalize its scientific result files.
+
+Use it solely to establish:
+
+    execution integrity
+    zero production failures
+    zero watchdogs
+    zero non-finite states
+
+This is an engineering qualification gate.
+
+
+======================================================================
+19. OPTIONAL ADDITIONAL PRODUCTION QUALIFICATION
+======================================================================
+
+If computationally reasonable, add one additional production-path qualification using the other material, preferably a representative kaolin case.
+
+Do not make this optional in the decision if you formally define it as a release gate.
+
+At minimum the exact:
+
+    loess 0.5 g/L
+    1,000,000 rays
+    seed 2441000
+
+regression is compulsory.
+
+
+======================================================================
+20. AUTHORIZATION RECEIPT MUST MOVE
+======================================================================
+
+V24.42 wrote the authorization receipt immediately after boundary validation.
+
+V24.43 MUST NOT do this.
+
+The receipt may only be written after BOTH:
+
+    boundary_gpu_validation_pass = true
+
+AND:
+
+    production_transport_qualification_pass = true
+
+AND all other compulsory gates pass.
+
+Refactor the decision/receipt code accordingly.
+
+
+======================================================================
+21. RECEIPT MUST INCLUDE QUALIFICATION HASHES
+======================================================================
+
+The authorization receipt should include enough information to prove what was qualified.
+
+Include hashes/metadata for at least:
+
+    production core
+    CUDA source
+    validation source
+    production qualification source
+    config
+    material data required by qualification
+
+and qualification metadata such as:
+
+    material
+    concentration
+    n-rays
+    seed
+    production failure count
+    watchdog count
+
+Campaign startup must verify the receipt against the current files.
+
+
+======================================================================
+22. CAMPAIGN MUST REFUSE PRE-QUALIFIED-ONLY RECEIPTS
+======================================================================
+
+Reject:
+
+    V24.42-style boundary-only receipt
+    host-only receipt
+    missing production qualification
+    failed production qualification
+    mismatched qualification seed
+    mismatched qualification ray count
+    stale code/config hash
+    wrong release version
+
+No trivial command-line bypass.
+
+
+======================================================================
+23. HANDLE EXPECTED FAIL-CLOSED TERMINATION CLEANLY
+======================================================================
+
+Expected scientific/qualification failure should not produce pages of Python traceback where avoidable.
+
+For expected release-gate failures:
+
+    print a concise FAIL summary
+    identify the CSV/JSON diagnostics
+    exit non-zero cleanly
+
+For example:
+
+    FAIL production qualification:
+      466 / 1000000 rays failed
+      diagnostics: results/_production_qualification/...
+
+Then exit with a non-zero status.
+
+DO NOT hide unexpected programming exceptions.
+
+Unexpected exceptions should still produce a traceback.
+
+This is a user-interface improvement only; failure semantics remain strict.
+
+
+======================================================================
+24. CAMPAIGN SUBPROCESS FAILURE HANDLING
+======================================================================
+
+If a campaign case returns a controlled invalid-case exit:
+
+    catch/report it cleanly at campaign level
+
+Do not obscure the original failure with only:
+
+    subprocess.CalledProcessError
+
+Instead report:
+
+    which case failed
+    why
+    where diagnostics were written
+
+Then stop.
+
+Do not continue to later cases.
+
+
+======================================================================
+25. INVESTIGATE THE 466 FAILURES IF POSSIBLE
+======================================================================
+
+After instrumentation is implemented:
+
+IF genuine compatible CUDA is available in your environment:
+
+    run the mandatory production qualification.
+
+If it reproduces failures:
+
+    use the detailed production failure codes to identify the actual branch.
+
+Only then make a numerical/geometry correction if:
+
+    the defect is clearly demonstrated
+    the correction is mathematically/physically justified
+    unrelated frozen physics is unaffected
+
+Do not guess.
+
+
+======================================================================
+26. IF CUDA IS NOT AVAILABLE
+======================================================================
+
+If CUDA is unavailable:
+
+    DO NOT invent the cause of the 466 rays.
+
+Implement the diagnostic/qualification architecture completely.
+
+Perform source audits for obvious deterministic implementation defects.
+
+But do not introduce speculative geometry or physics corrections without evidence.
+
+Package V24.43 as a fail-closed GPU qualification candidate.
+
+
+======================================================================
+27. IF A CLEAR SOURCE BUG IS FOUND
+======================================================================
+
+If source inspection itself reveals a definite bug responsible for an existing failure branch, it may be corrected.
+
+Examples include a demonstrably incorrect:
+
+    intersection discriminant
+    sign convention
+    finite check
+    impossible geometry predicate
+    wrong bounce-state update
+    off-by-one watchdog
+    stale medium state
+
+But document:
+
+    exact original defect
+    exact changed code
+    mathematical/physical justification
+    affected call paths
+
+Do NOT make broad transport changes merely to seek zero failures.
+
+
+======================================================================
+28. NO FAILURE HIDING
+======================================================================
+
+Do NOT fix the qualification by:
+
+    relabelling failure as escape
+    relabelling failure as absorption
+    ignoring failed rays
+    decrementing the denominator
+    retrying a ray until it succeeds
+    suppressing status 4
+    increasing watchdogs without justification
+    changing probability normalization
+    adding empirical losses
+
+Zero failures must mean genuinely zero failures.
+
+
+======================================================================
+29. PRESERVE V24.42 BOUNDARY GPU GATES
+======================================================================
+
+Retain the complete V24.42 boundary GPU validation.
+
+This includes:
+
+    deterministic optics
+    Smith Lambda
+    randomized height stress
+    signed VNDF
+    ultra-grazing VNDF
+    full-sphere VNDF
+    VNDF distribution checks
+    equal-index
+    forced-inside
+    smooth limit
+    probability conservation
+    watchdog checks
+    complete-kernel reciprocity
+    cross-interface reciprocity
+    historical known-bad regressions
+    legacy identity
+
+V24.43 must not weaken them.
+
+
+======================================================================
+30. RETAIN 66-BIN RECIPROCITY GATE
+======================================================================
+
+Retain:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+Total:
+
+    66
+
+Retain the exact failure criterion:
+
+    relative discrepancy > 1%
+
+AND:
+
+    >= 5 sigma
+
+Do NOT modify this rule.
+
+
+======================================================================
+31. RETAIN CROSS-INTERFACE GATE
+======================================================================
+
+Retain all states:
+
+    outside ordinary
+    outside near-critical
+    TIR near-critical
+    TIR grazing
+
+for both materials.
+
+V24.42 passed them.
+
+V24.43 must not regress them.
+
+
+======================================================================
+32. RETAIN EQUAL-INDEX SUCCESS
+======================================================================
+
+V24.42 retained the V24.41.1 equal-index success.
+
+Require:
+
+    100% survival
+    zero numerical failures
+    zero watchdogs
+    direction preservation within tolerance
+
+Do not regress it.
+
+
+======================================================================
+33. RETAIN RANDOMIZED HEIGHT SUCCESS
+======================================================================
+
+Require:
+
+    zero height numerical failures
+    zero status mismatches
+    successful high-precision comparison
+
+Do not modify the now-successful V24.41/V24.42 Smith height implementation without evidence.
+
+
+======================================================================
+34. PRESERVE ALL UNRELATED PHYSICS
+======================================================================
+
+Outside explicitly justified production-integrity corrections, preserve:
+
+    V24.29 exact-Mie event-rate physics
+    Qsca<1 handling
+    exact Qsca=1 behaviour
+    Mie tables
+    PSDs
+    source geometry
+    apparatus geometry
+    particle geometry
+    detector geometry
+    detector angular response
+    detector scoring
+    SFH213 response
+    optical constants
+    water refractive index
+    particle refractive indices
+    k=0
+    RMS roughness slope=25 degrees
+    vortex model
+    wave model
+    sediment transport model
+    H170 geometry
+    H170 cases
+    event codes
+    source/detector symmetry
+
+DO NOT TUNE H170.
+
+DO NOT TUNE ROUGHNESS.
+
+
+======================================================================
+35. ADD V24.42 ARCHITECTURE REGRESSION
+======================================================================
+
+Add V24.42 as a historical known-defect/architecture regression.
+
+Record the real baseline:
+
+    boundary GPU validation:
+        PASS
+
+    authorization receipt:
+        written
+
+    first production case:
+        loess 0.5 g/L
+        1000000 rays
+        seed 2441000
+
+    production failed rays:
+        466
+
+    scientific result:
+        correctly refused
+
+The regression must prove that V24.43's decision architecture would NOT authorize the campaign in this state.
+
+A synthetic host-level regression may be used to prove receipt blocking.
+
+If CUDA is available, the actual production regression should also be run.
+
+
+======================================================================
+36. HISTORICAL REGRESSIONS
+======================================================================
+
+Retain isolated regressions for:
+
+    V24.36.12
+    V24.37
+    V24.38
+    V24.39
+    V24.40
+    V24.41.1
+    V24.42
+
+Do not allow historical code into production execution.
+
+
+======================================================================
+37. RELEASE DECISION FIELDS
+======================================================================
+
+Retain independent factual decision fields and add production qualification fields.
+
+At minimum report:
+
+    gpu_acquisition_pass
+
+    deterministic_optics_pass
+
+    smith_lambda_pass
+
+    randomized_height_stress_pass
+
+    signed_vndf_pass
+
+    ultra_grazing_vndf_pass
+
+    full_sphere_vndf_stress_pass
+
+    equal_index_pass
+
+    forced_inside_second_hit_pass
+
+    smooth_limit_pass
+
+    corrected_kernel_reciprocity_pass
+
+    all_qsca_ge_1_bins_pass
+
+    cross_interface_reciprocity_pass
+
+    boundary_probability_conservation_pass
+
+    boundary_numerical_failures_zero
+
+    boundary_watchdogs_zero
+
+    production_transport_qualification_run
+
+    production_transport_qualification_pass
+
+    production_qualification_rays
+
+    production_qualification_failure_count
+
+    production_qualification_numerical_zero
+
+    production_qualification_watchdogs_zero
+
+    production_qualification_nonfinite_zero
+
+    production_qualification_geometry_failures_zero
+
+    production_failure_codes_all_zero
+
+    production_failure_diagnostics_written
+
+    legacy_identity_pass
+
+    known_bad_v24_36_rejected
+    known_bad_v24_37_rejected
+    known_bad_v24_38_rejected
+    known_bad_v24_39_rejected
+    known_bad_v24_40_rejected
+    known_bad_v24_41_rejected
+    known_bad_v24_42_rejected
+
+    validated_physics_correction
+
+    production_transport_validated
+
+    sediment_campaign_authorized
+
+
+======================================================================
+38. AUTHORIZATION RULE
+======================================================================
+
+Set:
+
+    sediment_campaign_authorized = true
+
+ONLY IF:
+
+    every compulsory boundary GPU gate passes
+
+AND:
+
+    production_transport_qualification_pass = true
+
+AND:
+
+    production_qualification_failure_count = 0
+
+AND:
+
+    every production failure-code count = 0
+
+AND:
+
+    all watchdog counts = 0
+
+AND:
+
+    all required package/hash checks pass.
+
+Anything else must leave authorization false.
+
+
+======================================================================
+39. PRODUCTION FAILURE CSV OUTPUTS
+======================================================================
+
+At minimum write:
+
+    v24_43_production_qualification_summary.csv
+
+    v24_43_production_failure_codes.csv
+
+    v24_43_production_failure_subcodes.csv
+
+    v24_43_production_failure_samples.csv
+
+    v24_43_production_qualification_decision.csv
+
+Where no failures occur, still write the summary/count files showing zeros.
+
+This proves the test actually ran.
+
+
+======================================================================
+40. RESULTS DIRECTORY ORGANIZATION
+======================================================================
+
+Use a clear structure such as:
+
+    results/
+        _boundary_validation/
+        _production_qualification/
+        loess_0.5gL/
+        ...
+
+The production qualification diagnostics must not be confused with finalized campaign scientific results.
+
+
+======================================================================
+41. PRODUCTION QUALIFICATION SHOULD NOT DUPLICATE FINAL OUTPUT
+======================================================================
+
+Do not unnecessarily store a second complete million-ray scientific result.
+
+Qualification should execute all required transport but retain only:
+
+    integrity metrics
+    failure diagnostics
+    essential performance metadata
+
+unless existing architecture makes additional temporary data unavoidable.
+
+Clean temporary qualification data after successful reduction if safe.
+
+
+======================================================================
+42. PERFORMANCE METADATA
+======================================================================
+
+Record qualification performance:
+
+    CUDA compile time
+    transport runtime
+    rays/s
+    GPU name
+    CUDA runtime version
+    CuPy version
+    seed
+    n-rays
+
+This helps distinguish future physics defects from environment/runtime changes.
+
+
+======================================================================
+43. HOST VALIDATION OF FAILURE-CODE COVERAGE
+======================================================================
+
+Add an adversarial host audit proving that every explicit production failure branch assigns a specific failure code.
+
+Where practical, fail preflight if a generic:
+
+    status=4
+
+assignment remains without an accompanying specific production failure code.
+
+Do not allow new generic failure branches silently.
+
+
+======================================================================
+44. HOST VALIDATION OF RECEIPT ORDERING
+======================================================================
+
+Add tests proving:
+
+    boundary pass + missing production qualification
+        -> NO receipt
+
+    boundary pass + production qualification fail
+        -> NO receipt
+
+    production qualification pass + boundary fail
+        -> NO receipt
+
+    boundary pass + production pass
+        -> receipt allowed
+
+Also prove the campaign rejects an old V24.42-style boundary-only receipt.
+
+
+======================================================================
+45. CONTROLLED FAILURE UX
+======================================================================
+
+Expected qualification failure should look approximately like:
+
+    FAIL GPU production qualification
+    case: loess 0.5 g/L
+    rays: 1000000
+    failed rays: N
+    watchdogs: N
+    diagnostics:
+        results/_production_qualification/...
+
+    sediment campaign NOT authorized
+
+and terminate non-zero WITHOUT an unnecessary Python traceback.
+
+Unexpected software defects should still show a traceback.
+
+
+======================================================================
+46. VERSIONING
+======================================================================
+
+Up-version consistently to:
+
+    V24.43.0
+
+Canonical release directory:
+
+    CLARITAS_V24_43
+
+Expected equivalents include:
+
+    claritas_tardiis_core_v24_43.py
+    claritas_v24_43_config.json
+    v24_43_model.py
+    v24_43_release.py
+    v24_43_validation.py
+    v24_43_legacy_core.py
+
+    v24_43_production_qualification.py
+
+    preflight_v24_43_package.py
+    verify_v24_43_corrected_boundary.py
+    summarize_v24_43_corrected_boundary.py
+    plot_v24_43_corrected_boundary.py
+
+    run_v24_43_case.py
+    run_v24_43_campaign.py
+
+and any other required versioned files.
+
+No stale V24.42 executable module may control production.
+
+
+======================================================================
+47. PACKAGE FORMAT — DO NOT CHANGE IT
+======================================================================
+
+Use the established ORIGINAL CLARITAS package layout.
+
+The ZIP must be:
+
+    CLARITAS_V24_43.zip
+        |
+        +-- CLARITAS_V24_43/
+              |
+              +-- preflight_v24_43_package.py
+              +-- verify_v24_43_corrected_boundary.py
+              +-- run_v24_43_campaign.py
+              +-- ...
+
+Exactly ONE top-level release folder.
+
+DO NOT provide a flat ZIP.
+
+DO NOT provide multiple ZIP variants.
+
+DO NOT double-nest the folder.
+
+
+======================================================================
+48. DOCUMENTATION
+======================================================================
+
+Update at minimum:
+
+    README.md
+    RELEASE_NOTES.txt
+    PACKAGE_MANIFEST.json
+    SHA256SUMS.txt
+
+Also update the validation/architecture documentation.
+
+Explain clearly:
+
+    V24.42 boundary GPU validation passed
+
+    V24.42 wrote an authorization receipt
+
+    the first production loess 0.5 g/L case then reported 466 failed rays
+
+    why top-level status==4 was too ambiguous
+
+    the new production failure-code architecture
+
+    how micro failure subcodes propagate to production
+
+    why diagnostics are written before fail-closed termination
+
+    why production qualification now precedes authorization
+
+    why the existing Smith-Beckmann physics is retained
+
+    how the production qualification is distinct from a finalized H170 result
+
+    what remains frozen
+
+
+======================================================================
+49. HOST PREFLIGHT
+======================================================================
+
+Retain all established checks, including:
+
+    required files
+    package hashes
+    Python compilation in memory
+    no package-tree pyc dependency
+    non-writable __pycache__ tolerance
+    NumPy compatibility
+    no np.trapz dependency
+    no bare NVRTC-hostile NAN/INFINITY
+    frozen V24.29 physics
+    legacy identity
+    k=0
+    25-degree roughness
+    no support resampling
+    no invalid-side rejection
+    no tail truncation
+    no geometric fallback
+    no numerical-error-as-escape
+    no H170 tuning
+    no empirical loss
+    sys.executable subprocesses
+    no nested Bash
+    Windows path budget
+    CUDA syntax/scope surrogate
+
+Add:
+
+    production failure-code coverage audit
+    production qualification presence
+    qualification-before-receipt audit
+    diagnostics-before-abort audit
+    old boundary-only receipt rejection
+
+
+======================================================================
+50. GPU AVAILABILITY RULE
+======================================================================
+
+If genuine compatible CUDA hardware is available:
+
+    run boundary validation
+
+then:
+
+    run the mandatory full production qualification
+
+If the qualification reproduces failures:
+
+    inspect the new diagnostics
+
+If a specific defect is clearly identified:
+
+    fix it
+    rerun host validation
+    rerun boundary validation
+    rerun production qualification
+
+Do not authorize until everything passes.
+
+If CUDA is unavailable:
+
+    do not invent results
+    do not invent the cause of the 466 failures
+    do not authorize sediment
+    still build the complete diagnostic V24.43 package
+
+
+======================================================================
+51. FINAL ZIP WORKFLOW — COMPULSORY
+======================================================================
+
+THIS IS NON-OPTIONAL.
+
+Before final response:
+
+1. Build:
+
+       CLARITAS_V24_43
+
+2. Run:
+
+       python preflight_v24_43_package.py
+
+3. Run complete host validation.
+
+4. Run CUDA tests if genuinely available.
+
+5. Update all documentation.
+
+6. Generate:
+
+       PACKAGE_MANIFEST.json
+
+7. Generate:
+
+       SHA256SUMS.txt
+
+8. Remove unintended:
+
+       results
+       receipts
+       __pycache__
+       .pyc
+       compiler temporaries
+       build artefacts
+
+9. Create EXACTLY:
+
+       CLARITAS_V24_43.zip
+
+10. Ensure the ZIP structure is EXACTLY:
+
+       CLARITAS_V24_43.zip
+           CLARITAS_V24_43/
+               ...
+
+11. Test ZIP compressed-data integrity.
+
+12. Extract THAT EXACT ZIP to a new clean directory.
+
+13. Confirm exactly one top-level:
+
+       CLARITAS_V24_43
+
+14. From the extracted package run:
+
+       python preflight_v24_43_package.py
+
+15. Run the COMPLETE host verifier from the extracted package.
+
+16. Verify:
+
+       SHA256SUMS.txt
+
+17. Confirm no external package files are required.
+
+18. Where practical test a pre-existing non-writable:
+
+       __pycache__
+
+19. Calculate SHA-256 of:
+
+       CLARITAS_V24_43.zip
+
+20. ATTACH THAT EXACT ZIP.
+
+Do not answer before step 20.
+
+
+======================================================================
+52. REQUIRED USER RUN COMMANDS
+======================================================================
+
+The final answer MUST contain exactly usable Git Bash commands:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_43"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_43_package.py && \
+    python verify_v24_43_corrected_boundary.py && \
+    python run_v24_43_campaign.py
+
+Do not omit these commands.
+
+The verifier must now include BOTH:
+
+    boundary GPU validation
+
+and:
+
+    full production transport qualification
+
+before writing the authorization receipt.
+
+
+======================================================================
+53. DEFINITION OF DONE
+======================================================================
+
+The task is complete ONLY when:
+
+    V24.43.0 is implemented
+
+    V24.42 is the production starting point
+
+    successful V24.42 boundary physics is retained
+
+    every generic production failure path is audited
+
+    meaningful production failure codes exist
+
+    micro failure subcodes propagate to the production result
+
+    failure diagnostics are written before abort
+
+    invalid scientific sediment results are never finalized
+
+    exact failed ray IDs are recoverable
+
+    production qualification uses the real trace kernel
+
+    the loess 0.5 g/L / 1,000,000-ray / seed 2441000 regression is compulsory
+
+    boundary validation alone cannot authorize sediment
+
+    production qualification occurs before receipt creation
+
+    V24.42 boundary-only authorization architecture is rejected
+
+    expected fail-closed rejection is reported cleanly
+
+    all existing boundary GPU gates remain uncompromised
+
+    66-bin reciprocity threshold remains unchanged
+
+    cross-interface validation remains
+
+    equal-index remains
+
+    randomized height stress remains
+
+    historical regressions remain
+
+    no H170 tuning occurs
+
+    package integrity passes
+
+    exact ZIP is re-extracted and retested
+
+    final ZIP SHA-256 is reported
+
+    CLARITAS_V24_43.zip is downloadable
+
+    exact run commands are supplied
+
+
+======================================================================
+54. FINAL RESPONSE REQUIREMENTS
+======================================================================
+
+The final response MUST report:
+
+    what V24.43 changed
+
+    confirmation that V24.42 Smith-Beckmann physics was retained unless a clearly demonstrated production defect required a narrow correction
+
+    production failure-code architecture
+
+    diagnostic-before-abort behaviour
+
+    boundary validation status
+
+    production qualification status
+
+    production qualification case
+
+    production qualification failed-ray count if actually run
+
+    production failure-code counts if actually run
+
+    watchdog count if actually run
+
+    equal-index status if actually run
+
+    66-bin reciprocity status if actually run
+
+    cross-interface status if actually run
+
+    validated_physics_correction
+
+    production_transport_validated
+
+    sediment_campaign_authorized
+
+    final ZIP SHA-256
+
+    downloadable CLARITAS_V24_43.zip
+
+    exact Git Bash commands
+
+
+======================================================================
+55. ABSOLUTE NON-NEGOTIABLES
+======================================================================
+
+DO NOT:
+
+    authorize based only on boundary validation
+
+    write the authorization receipt before production qualification
+
+    leave status==4 as the only production failure information
+
+    abort before writing failure diagnostics
+
+    finalize an invalid sediment result
+
+    hide failed rays
+
+    treat failed rays as escape
+
+    treat failed rays as absorption
+
+    retry rays until they succeed
+
+    increase watchdogs just to remove failures
+
+    redesign successful Smith-Beckmann physics without evidence
+
+    tune H170
+
+    tune 25-degree roughness
+
+    alter frozen Mie/event-rate physics
+
+    weaken the >1% AND >=5 sigma reciprocity gate
+
+    reduce the 1,000,000-ray regression qualification
+
+    invent the cause of the 466 V24.42 failures
+
+    invent CUDA results
+
+    claim sediment authorization without real CUDA qualification
+
+    change the established ZIP structure
+
+    provide a flat ZIP
+
+    provide multiple archive variants
+
+    finish without the ZIP
+
+    finish without run commands
+
+
+MOST IMPORTANT:
+
+THE FINAL RESPONSE MUST ACTUALLY CONTAIN:
+
+    [Download CLARITAS_V24_43.zip]
+
+with archive structure:
+
+    CLARITAS_V24_43.zip
+        CLARITAS_V24_43/
+            files...
+
+AND MUST CONTAIN:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_43"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_43_package.py && \
+    python verify_v24_43_corrected_boundary.py && \
+    python run_v24_43_campaign.py
+
+THE ZIP, CORRECT ORIGINAL FOLDER STRUCTURE, AND RUN COMMANDS ARE ALL COMPULSORY.

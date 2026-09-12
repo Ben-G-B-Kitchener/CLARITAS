@@ -1,0 +1,843 @@
+{
+  "version": "V24.36.9",
+  "forward_model": {
+    "n_water": 1.33,
+    "n_particle": 1.59,
+    "n_acrylic": 1.4906,
+    "n_air": 1.0,
+    "tube_inner_radius_m": 0.0465,
+    "tube_outer_radius_m": 0.05,
+    "water_height_m": 0.142,
+    "sensor_height_above_bottom_m": 0.093,
+    "source_beam_sigma_m": 1e-05,
+    "alpha1": 0.45,
+    "alpha2": 5.0,
+    "density_kg_per_m3": 2600.0,
+    "max_iterations": 1000000,
+    "max_internal_bounces": 64,
+    "max_cell_bounces": 64,
+    "chunk_size": 250000,
+    "statistics_batch_rays": 250000,
+    "symmetry_average_exact": true,
+    "sensor_ring_inner_radius_m": 0.0505,
+    "sensor_ring_outer_radius_m": 0.0655,
+    "counterbore_depth_m": 0.008,
+    "through_bore_diameter_m": 0.004,
+    "counterbore_diameter_m": 0.0087,
+    "legacy_detector_acceptance_deg": 6.5,
+    "source_launch_radius_m": 0.0655,
+    "particle_wavelength_m": 6.22e-07,
+    "particle_optical_constants_by_material": {
+      "loess": {
+        "n_real": [
+          1.607451331,
+          1.605504695,
+          1.603586747,
+          1.601692366,
+          1.599827047,
+          1.597981118,
+          1.596160167,
+          1.594367874,
+          1.592599298,
+          1.590855346,
+          1.589138183,
+          1.587447487,
+          1.585783658,
+          1.584147841,
+          1.582538755,
+          1.580958153,
+          1.579405657,
+          1.577883002,
+          1.576389253,
+          1.57492664,
+          1.573494964,
+          1.572095154,
+          1.570728147,
+          1.569395256,
+          1.568097028,
+          1.56683506,
+          1.565610853,
+          1.564425894,
+          1.563282045,
+          1.562181851,
+          1.561127985,
+          1.560123766,
+          1.559173695,
+          1.558283428,
+          1.557461192,
+          1.556719679,
+          1.556082305,
+          1.555628472
+        ],
+        "k_imag": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "kaolin": {
+        "n_real": [
+          1.585,
+          1.584305748,
+          1.583603199,
+          1.582905961,
+          1.58222285,
+          1.58152895,
+          1.580825132,
+          1.580137092,
+          1.579439632,
+          1.5787465,
+          1.57805136,
+          1.5773587,
+          1.576666415,
+          1.575969469,
+          1.575275553,
+          1.574582453,
+          1.573886743,
+          1.573193902,
+          1.572497863,
+          1.571803467,
+          1.571108815,
+          1.570415873,
+          1.569720958,
+          1.569026043,
+          1.568332463,
+          1.567638212,
+          1.566943504,
+          1.566249071,
+          1.565554649,
+          1.564860252,
+          1.564166201,
+          1.563471767,
+          1.562777499,
+          1.562083009,
+          1.561388825,
+          1.560694246,
+          1.56
+        ],
+        "k_imag": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "bottom_disc_thickness_m": 0.003,
+    "bottom_external_refractive_index": 1.0,
+    "max_axial_bounces": 64,
+    "source_angular_model": "beta_radiance_3d",
+    "particle_surface_rms_slope_deg": 25.0,
+    "wave_surface_rms_height_m": 1e-07,
+    "wave_spheroid_aspect_ratio": 1.0,
+    "aggregation_model": "none",
+    "aggregation_collision_exposure": 0.0,
+    "aggregation_step_safety": 0.2,
+    "aggregation_max_steps": 200000,
+    "fragmentation_breakup_exposure": 0.0,
+    "fragmentation_reference_diameter_m": 0.0001,
+    "fragmentation_size_exponent": 1.0,
+    "wave_spheroid_orientation_model": "isotropic",
+    "wave_spheroid_orientation_kappa": 0.0,
+    "free_surface_model": "localized_scully_vortex",
+    "vortex_wall_center_height_difference_m": 0.05,
+    "vortex_core_radius_m": 0.02,
+    "sediment_transport_model": "uniform",
+    "sediment_eddy_diffusivity_m2_s": 0.001,
+    "water_density_kg_per_m3": 997.0,
+    "water_dynamic_viscosity_pa_s": 0.00089,
+    "gravity_m_s2": 9.81,
+    "sediment_transport_quadrature_points": 4096,
+    "sediment_radial_lookup_points": 2049,
+    "meridional_circulation_ratio": 0.0,
+    "meridional_grid_nr": 48,
+    "meridional_grid_nz": 96,
+    "meridional_solver_max_iterations": 8000,
+    "meridional_solver_check_interval": 250,
+    "meridional_solver_tolerance": 1e-06,
+    "meridional_solver_sor": 1.75,
+    "source_bore_surface_model": "absorbing",
+    "detector_bore_surface_model": "absorbing",
+    "bore_refractive_index": 1.53,
+    "max_bore_bounces": 16,
+    "ring_inner_face_surface_model": "absorbing",
+    "ring_inner_face_refractive_index": 1.53,
+    "max_ring_face_bounces": 16,
+    "photodiode_response_model": "ideal_hard_aperture",
+    "particle_event_model": "hybrid_mie_exact_rate",
+    "hybrid_wave_scale": 1.0
+  },
+  "experimental_interpretation": {
+    "release_question": "Is the proposed three-target rank-preserving piecewise-power Qsca>=1 angular transform mathematically feasible and independently stable for every loess and kaolin PSD bin before any V24.37 transport implementation?",
+    "production_baseline": "V24.29.0",
+    "candidate_transport_release": "V24.37.0",
+    "diagnostic_only": true,
+    "no_empirical_multiplier": true,
+    "calibration_source": "runtime CUDA sampling of the inherited V24.29 exact-event-rate finite-interface kernel plus exact CUDA Mie phase targets; no detector/H170 fitting",
+    "fit_targets": [
+      "exact Mie <1-cos(theta)>",
+      "exact Mie <(1-cos(theta))^2>",
+      "exact Mie P(theta>=90 deg)"
+    ],
+    "out_of_sample_tail_checks": [
+      "P(theta>=60 deg)",
+      "P(theta>=120 deg)"
+    ]
+  },
+  "geometry_provenance": {
+    "tube_inner_diameter_mm": 93.0,
+    "tube_outer_diameter_mm": 100.0,
+    "sensor_ring_inner_diameter_mm": 101.0,
+    "sensor_ring_outer_diameter_mm": 131.0,
+    "through_bore_diameter_mm": 4.0,
+    "counterbore_diameter_mm": 8.7,
+    "counterbore_depth_mm": 8.0,
+    "derived_through_bore_length_mm": 7.0,
+    "legacy_claritas_acceptance_half_angle_deg": 6.5,
+    "paper_conflict_note": "Section 5.3 prose states 3 mm through / 10 mm depth; Fig.3, Fig.4 machining caption and Fig.6 state 4 mm through / 8 mm depth. V24.4 defaults to drawing/machining values.",
+    "photodiode_active_area_note": "Not specified in the supplied paper; no invented active-area aperture is imposed.",
+    "source_launch_radius_mm_default": 65.5,
+    "source_launch_note": "The paper defines the ring bore but does not locate the LED die/luminous plane within the module. V24.4 defaults the launch reference to the ring outer face and exposes it as a configurable parameter.",
+    "steady_state_622_water_height_mm": 142.0,
+    "steady_state_622_sensor_height_above_bottom_mm": 93.0,
+    "bottom_acrylic_disc_thickness_mm": 3.0,
+    "bottom_disc_note": "Paper BOM/sample-cell description specifies a 3-mm clear acrylic disc glued to the tube bottom.",
+    "source_beta_622_thesis_prior_alpha1": 0.25,
+    "source_beta_622_thesis_prior_alpha2": 5.0,
+    "source_beta_note": "Historical CLARITAS beam-divergence prior chosen manually in thesis section 5.2.3; used as a DGB audit prior, not treated as a measured LED datasheet law.",
+    "source_launch_audit_range_mm": [
+      57.5,
+      59.5,
+      61.5,
+      63.5,
+      65.5
+    ],
+    "source_launch_audit_note": "LED luminous plane is not dimensioned in the paper. Audit spans the 8-mm counterbore from its inner shoulder to the ring outer face."
+  },
+  "detector_estimator": {
+    "type": "reconstructed_sensor_ring_bore_with_optional_fresnel_wall_reflections_and_x_symmetry_average",
+    "selected_geometry": "4-mm diameter through-bore from r=50.5 to57.5 mm; 8.7-mm counterbore from57.5 to65.5 mm",
+    "native_exact_hits_retained": true,
+    "mirror_transform": "x->-x, vx->-vx",
+    "selected_score": "0.5*(native + mirrored) accepted bore paths; paths are separated into zero-wall-bounce direct and >=1-wall-bounce stray components",
+    "legacy_comparison": "original CLARITAS +/-6.5-degree boundary exit-position scorer; overlapping channels; not selected",
+    "kde_or_aperture_widening": false,
+    "extrapolation": false,
+    "batch_jackknife_uncertainty": true
+  },
+  "sampling_guidance": {
+    "v24_19_first_screen": {
+      "cases": 18,
+      "concentrations_g_L": [
+        0.5,
+        2.0,
+        4.0
+      ],
+      "controls": [
+        "uniform",
+        "schiller_naumann_drift_diffusion"
+      ],
+      "circulation_chi": [
+        0.025,
+        0.05,
+        0.1,
+        0.2
+      ],
+      "Dt_m2_s": 0.001,
+      "target_detector_score": 400,
+      "min_rear_channel_score_each_H150_H160_H170": 30,
+      "min_rays": 2000000,
+      "max_rays": 12000000,
+      "stability_l1_tolerance": 0.02,
+      "stability_window_batches": 3
+    }
+  },
+  "particle_optics_v24_5": {
+    "mode": "explicit_per_bin_complex_refractive_index",
+    "loess_bin_count": 38,
+    "kaolin_bin_count": 37,
+    "first_diagnostic_focus": "loess 0.5 g/L",
+    "ray_direction": "Snell law using real n(d)",
+    "surface_reflectance": "unpolarised Fresnel reflectance using complex n(d)+i*k(d)",
+    "internal_absorption": "Beer-Lambert intensity survival exp(-4*pi*k(d)*L/lambda)",
+    "particle_encounter_cross_section": "geometric pi*r^2 retained deliberately from V24.4 in this first attempt",
+    "profile_status": "exploratory hypothesis; not measured optical constants for these samples",
+    "loess_profile_concept": "fine fraction increasingly clay/iron-rich; coarse fraction increasingly quartz/feldspar-rich, mixed by complex Lorentz-Lorenz",
+    "kaolin_profile_concept": "conservative clay-dominant explicit profile; secondary to first loess diagnostic"
+  },
+  "apparatus_fix_v24_10_1": {
+    "purpose": "Correct the 622-nm steady-state DGB apparatus geometry before further sediment-physics changes.",
+    "cuda_authoritative": true,
+    "new_cuda_physics": [
+      "water-air top free-surface Fresnel reflection/TIR",
+      "finite acrylic bottom-disc slab with repeated Fresnel/TIR"
+    ],
+    "dgb_constraint": "Thesis Figure 4-3 water-only calibrated radiant-intensity ratio H10/H0 ~= 0.169807 from vector chart extraction.",
+    "sediment_physics": "Frozen from V24.10 during DGB audit."
+  },
+  "apparatus_fix_v24_14": {
+    "purpose": "Test the thesis-documented stirred vortex as a fixed apparatus optical mechanism for the persistent 170-degree lobe.",
+    "cuda_authoritative": true,
+    "new_cuda_physics": [
+      "exact ray intersection with volume-preserving parabolic water-air free surface",
+      "local curved-surface normal",
+      "water-air Fresnel reflection/TIR at local incidence angle",
+      "repeated reflected/TIR water-side encounters with curved surface"
+    ],
+    "headspace_scope": "rays transmitted into air through the top are counted as top exits, retaining the established V24.10.1 treatment; air-headspace re-entry is outside this first diagnostic",
+    "sediment_physics": "Frozen reference morphology q=1, slope=25 deg, wave height=100 nm, isotropic; no population evolution."
+  },
+  "apparatus_fix_v24_15": {
+    "purpose": "Replace the V24.14 full-radius rigid-body paraboloid with a localized, volume-preserving Scully-type vortex free surface motivated by the TARDIIS photograph.",
+    "cuda_authoritative": true,
+    "new_cuda_physics": [
+      "localized Scully-type free-surface height with independent core radius and wall-centre depth",
+      "analytic volume-preserving mean-height correction",
+      "exact rational-surface ray interception through a CUDA cubic solver",
+      "local analytic surface normal",
+      "water-air Fresnel reflection/TIR at the local incidence angle",
+      "repeated reflected/TIR water-side encounters with the localized curved surface"
+    ],
+    "legacy_comparison": "V24.14 parabolic_vortex remains selectable for A/B regression; delta_h=0 retains the exact historical flat branch.",
+    "headspace_scope": "rays transmitted into air through the top are counted as top exits; air-headspace re-entry remains outside this diagnostic",
+    "sediment_physics": "Frozen reference morphology q=1, slope=25 deg, wave height=100 nm, isotropic; nominal PSD/concentration; no aggregation, fragmentation, settling, or spatial concentration field."
+  },
+  "sediment_transport_v24_16": {
+    "purpose": "Test whether size-dependent sediment redistribution generated by the continuously stirred Scully vortex can explain the remaining TARDIIS angular-response discrepancy without empirical optical multipliers.",
+    "cuda_authoritative": true,
+    "frozen_free_surface_geometry": {
+      "model": "localized_scully_vortex",
+      "core_radius_m": 0.02,
+      "wall_center_height_difference_m": 0.05
+    },
+    "particle_drift_physics": [
+      "Stokes response time tau_p=rho_p*d^2/(18*mu)",
+      "outward inertial slip w_r=tau_p*v_theta(r)^2/r",
+      "gravitational settling w_s=(rho_p-rho_w)*g*d^2/(18*mu)"
+    ],
+    "mixing_closure": "scalar effective eddy diffusivity D_t applied to radial and vertical particle transport",
+    "steady_field": "zero-flux drift-diffusion with independent curved-vessel volume normalization for every PSD bin",
+    "optical_transport": "CUDA Woodcock/delta tracking with exact per-bin density maxima and local event-bin sampling",
+    "mass_conservation": "integrated number and mass of every PSD bin preserved; bulk concentration and bulk PSD unchanged",
+    "scope_limit": "no finite-Re drag, explicit meridional CFD velocity field, wall resuspension/deposition kinetics, aggregation/fragmentation, sediment-flow feedback, or air-headspace re-entry",
+    "status": "retained as legacy Stokes regression branch; V24.18 production validation uses the V24.17 finite-Re branch"
+  },
+  "sediment_transport_v24_17": {
+    "purpose": "Test whether the V24.16 improvement survives a physically stronger finite-Re drag treatment and better rear-channel convergence.",
+    "cuda_authoritative": true,
+    "frozen_free_surface_geometry": {
+      "model": "localized_scully_vortex",
+      "core_radius_mm": 20.0,
+      "wall_center_height_difference_mm": 50.0
+    },
+    "drag_correlation": "Schiller-Naumann C_D=24/Re*(1+0.15*Re^0.687)",
+    "settling": "Stokes terminal driving speed corrected implicitly with Schiller-Naumann drag",
+    "radial_slip": "Stokes inertial driving speed tau_p*v_theta^2/r corrected pointwise with Schiller-Naumann drag",
+    "radial_potential": "psi_i(r)=integral_R^r w_r,i(s)/D_t ds, tabulated on CUDA and interpolated in the ray kernel",
+    "mixing_closure": "single scalar effective eddy diffusivity D_t applied to radial and vertical zero-flux transport",
+    "mass_conservation": "each PSD bin independently normalised over the actual curved cell; bulk PSD is conserved",
+    "optical_transport": "CUDA Woodcock/delta tracking with per-bin density majorants and local event-bin sampling",
+    "regression_controls": [
+      "uniform",
+      "stokes_drift_diffusion"
+    ],
+    "scope_limit": "no explicit meridional CFD velocity field, nonspherical drag correlation, wall resuspension/deposition kinetics, aggregation/fragmentation, sediment-flow feedback, or air-headspace re-entry"
+  },
+  "validation_v24_18": {
+    "purpose": "Resolve whether the V24.17 finite-Re drift-diffusion improvement over uniform suspension survives substantially higher rear-channel statistics and stricter full-curve convergence.",
+    "physics_change_from_v24_17": "none",
+    "frozen_free_surface_geometry": {
+      "model": "localized_scully_vortex",
+      "core_radius_mm": 20.0,
+      "wall_center_height_difference_mm": 50.0
+    },
+    "transport_models": [
+      "uniform",
+      "schiller_naumann_drift_diffusion"
+    ],
+    "finite_re_eddy_diffusivity_m2_s": [
+      0.00075,
+      0.001,
+      0.00125,
+      0.002
+    ],
+    "concentrations_g_per_L": [
+      0.5,
+      2.0,
+      4.0
+    ],
+    "adaptive_convergence": {
+      "target_detector_score": 1000,
+      "min_rear_channel_score_H150_H170": 100,
+      "stability_l1_tolerance": 0.01,
+      "stability_window_batches": 5,
+      "min_rays": 10000000,
+      "max_rays": 30000000,
+      "statistics_batch_rays": 250000
+    },
+    "case_count": 15,
+    "selection_basis": "V24.17 screening retained uniform plus finite-Re D_t = 0.00075, 0.001, 0.00125 and 0.002 m^2/s; D_t=0.0015 was omitted because it was not a concentration-wise or joint screening optimum.",
+    "decision_rule": "Do not add new transport physics until these high-statistics cases determine whether the finite-Re redistribution effect is robust relative to the uniform control.",
+    "next_physics_if_not_sufficient": "explicit secondary meridional/toroidal recirculation with mass-conserving particle advection-diffusion, not an empirical optical multiplier"
+  },
+  "sediment_transport_v24_19": {
+    "model_name": "schiller_naumann_meridional_advection_diffusion",
+    "streamfunction": "psi=-A*r^2*(1-r^2/R^2)^2*eta*(1-eta), eta=(z-z_bottom)/(z_surface(r)-z_bottom), A=2*U_peak",
+    "velocity_definition": [
+      "u_r=-(1/r)*dpsi/dz",
+      "u_z=(1/r)*dpsi/dr"
+    ],
+    "circulation_parameter": "chi=U_peak/max(v_theta), with max(v_theta)=Omega_c*a/2 for the localized Scully vortex",
+    "first_screen_chi": [
+      0.025,
+      0.05,
+      0.1,
+      0.2
+    ],
+    "first_screen_fixed_Dt_m2_s": 0.001,
+    "particle_transport_equation": "div[n_i*(u_m+v_radial_i-w_settle_i*z_hat)-D_t*grad(n_i)]=0",
+    "drag": "Schiller-Naumann finite-Re correction retained for settling and centrifugal radial slip",
+    "solver": "CUDA axisymmetric cell-centred finite volume, first-order upwind advection, centred diffusion, red-black SOR",
+    "boundaries": "no-flux at bottom, axis, wall and curved free-surface active-mask boundary",
+    "mass_conservation": "each PSD bin independently normalized to its prescribed bulk mean over the vessel volume",
+    "grid_default": [
+      48,
+      96
+    ],
+    "solver_max_iterations": 8000,
+    "solver_check_interval": 250,
+    "solver_tolerance": 1e-06,
+    "solver_sor": 1.75,
+    "limitations": [
+      "prescribed reduced circulation rather than CFD/PIV",
+      "one-way particle-flow coupling",
+      "scalar eddy diffusivity",
+      "no wall deposition or resuspension kinetics",
+      "first-order upwind numerical advection"
+    ]
+  },
+  "collimator_stray_light_v24_20": {
+    "ring_material_provenance": "HardwareX paper states sensor ring was machined from waste nylon plastic.",
+    "nominal_nylon_refractive_index": 1.53,
+    "surface_models": [
+      "absorbing",
+      "smooth_fresnel_nylon"
+    ],
+    "absorbing_control": "bitwise-intent regression of V24.19 hard aperture: any bore wall interception is loss",
+    "smooth_fresnel_nylon": "exact smooth cylindrical/planar geometry; unpolarised Fresnel air-to-nylon reflection is traced; transmitted component is treated as lost in the thick ring",
+    "source_geometry": "counterbore from source luminous plane to r=57.5 mm shoulder; 4-mm throat from r=57.5 to 50.5 mm",
+    "detector_geometry": "4-mm throat from r=50.5 to 57.5 mm; 8.7-mm counterbore from r=57.5 to 65.5 mm; detection at outer-plane proxy preserved because photodiode active plane is not dimensioned",
+    "diagnostics": [
+      "source direct/reflected accepted fractions",
+      "detector direct/reflected scores per channel",
+      "H150/H160/H170 stray fractions",
+      "DGB H10/H0 regression"
+    ],
+    "scope_limits": [
+      "no diffuse/subsurface nylon BRDF because surface albedo/roughness was not measured",
+      "no bulk nylon transmission/scattering",
+      "no reflections from the broad inner cylindrical face of the sensor ring between bore openings",
+      "photodiode active area/plane remains unresolved"
+    ],
+    "status": "superseded for sediment interpretation by V24.21 due particle-optics confound; DGB-only evidence remains valid"
+  },
+  "particle_optics_v24_21": {
+    "production_mode": "v24_18_real_index_only",
+    "reference": "V24.18 high-statistics uniform-control runs used --real-index-only",
+    "implementation": "The package config contains the per-bin V24.5 n(d) arrays with k(d)=0, and the V24.21 production driver re-applies the same override after loading any config so complex k(d) cannot be re-enabled accidentally.",
+    "complex_v24_5_status": "available only as an explicit diagnostic particle-optics-mode; not used by the stray-light production sweep",
+    "reason": "V24.20 sediment stray-light results were confounded because the sweep omitted --real-index-only and silently reverted to exploratory complex n(d)+i k(d)."
+  },
+  "collimator_stray_light_v24_21": {
+    "core_relation_to_v24_20": "byte-identical core; only orchestration, baseline optics, gating and diagnostics are changed",
+    "safe_default": "AA: absorbing source bore + absorbing detector bore",
+    "hypothesis_cases": {
+      "AA": "absorbing source / absorbing detector, regression control",
+      "RA": "smooth Fresnel source / absorbing detector",
+      "AR": "absorbing source / smooth Fresnel detector",
+      "RR": "smooth Fresnel source / smooth Fresnel detector"
+    },
+    "bore_material_model": "unpolarised air/nylon Fresnel reflection with n=1.53; transmitted component is lost into thick nylon",
+    "DGB_source_law": "fixed beta_radiance_3d alpha1=0.45 alpha2=5.0",
+    "regression_gate": "AA at 0.5, 2 and 4 g/L must reproduce archived V24.18 uniform real-index-only reference curves/rates before reflective sediment cases proceed",
+    "conclusion": "V24.21 clean regression rejected smooth specular bore-wall reflection as the H170 mechanism; AA absorbing bores retained."
+  },
+  "inner_ring_face_stray_light_v24_22": {
+    "question": "Can specular stray-light paths from the broad inner cylindrical nylon face between collimator openings preferentially enhance H170 while preserving the independently calibrated DGB?",
+    "baseline": "V24.21 AA / V24.18 high-stat uniform real-index-only optical baseline",
+    "source_bore_surface_model": "absorbing",
+    "detector_bore_surface_model": "absorbing",
+    "ring_inner_face_models": [
+      "absorbing",
+      "smooth_fresnel_nylon"
+    ],
+    "ring_material": "waste nylon plastic as documented for the sensor ring",
+    "nominal_ring_refractive_index": 1.53,
+    "external_air_gap_mm": 0.5,
+    "acrylic_outer_radius_mm": 50.0,
+    "ring_inner_radius_mm": 50.5,
+    "cavity_physics": "For rays rejected by the established direct detector acceptance, trace air->nylon Fresnel reflection at the ring inner cylinder, then air->acrylic Fresnel reflection at the tube outer cylinder. Repeated external-cavity bounces may subsequently enter an established detector bore.",
+    "aperture_handling": "Any ray that enters a 4-mm detector or source throat but fails the complete absorbing-bore acceptance is lost in that bore and is not allowed to reflect from the broad face.",
+    "acrylic_transmission_boundary": "Transmission from the external air gap back into acrylic terminates the apparatus-only cavity branch; it is not counted as ring-face stray light. This avoids misclassifying sample re-entry as direct apparatus stray light.",
+    "no_empirical_parameters": [
+      "no diffuse albedo",
+      "no fitted BRDF roughness",
+      "no detector gain multiplier",
+      "no concentration multiplier",
+      "no PSD-specific boost"
+    ],
+    "diagnostics": [
+      "direct detector score",
+      "total stray score",
+      "ring-face-cavity score by detector",
+      "H150/H160/H170 ring-face stray fractions",
+      "DGB H10/H0",
+      "V24.21 AA regression gate"
+    ],
+    "production_decision_rule": "A reflective-face case is not admissible merely because sediment RMSE improves; it must also remain consistent with the independent DGB response."
+  },
+  "detector_optics_v24_23": {
+    "purpose": "Test the actual TARDIIS SFH213 packaged-photodiode directional sensitivity after the validated hard collimator, while preserving the independent DGB source constraint.",
+    "part": "ams OSRAM SFH 213 silicon PIN photodiode",
+    "package": "clear epoxy 5 mm T-1 3/4",
+    "radiant_sensitive_area_mm2": 1.0,
+    "active_chip_dimensions_mm": [
+      1.0,
+      1.0
+    ],
+    "datasheet_typical_half_angle_deg": 10.0,
+    "datasheet_directional_fit": "S(phi)=1/(1+(abs(phi)/10 deg)^p), p=ln(9)/ln(2)=3.169925..., anchored at S(10)=0.5 and approximately S(20)=0.1 from manufacturer directional plot",
+    "weighting_interpretation": "Each hard-collimator candidate photon contributes its package relative response as an analogue-equivalent Monte Carlo weight; no extra projected-area cosine factor is applied because the published directional characteristic is package-integrated.",
+    "source_constraint": "alpha2 remains 5.0; alpha1 is re-calibrated against the water-only DGB H10/H0 whenever the SFH213 response is enabled.",
+    "baseline_model": "ideal_hard_aperture with alpha1=0.45 must retain V24.21/V24.22 regression behavior.",
+    "apparatus_surfaces": "source bore, detector bore and inner ring face are fixed absorbing for this audit.",
+    "scope_limits": [
+      "no per-detector gain fitting",
+      "no detector tilt/misalignment fitting",
+      "no invented epoxy refractive index or internal lens ray trace",
+      "no diffuse package scattering",
+      "no concentration-dependent detector parameters"
+    ]
+  },
+  "particle_backreflectance_v24_24": {
+    "purpose": "Test projected-CSA/backreflectance hypothesis for both loess and kaolin without adding a fitted backscatter boost.",
+    "projected_CSA_definition": "sum_i N_i*pi*(d_i/2)^2; units m^2 particle cross-section per m^3 suspension = m^-1.",
+    "reflective_CSA_reference": "Projected CSA multiplied by water-to-mineral Fresnel reflectance; smooth-sphere reference only, not a fitted BRDF.",
+    "near_backscatter_diagnostics": [
+      "Mie qback by PSD bin",
+      "CUDA Mie phase probability 165-175 deg",
+      "smooth-sphere external Fresnel reflection at 170 deg",
+      "detected-ray particle reflection path fractions"
+    ],
+    "path_categories_overlap": true,
+    "H170_convergence_only": true,
+    "production_decision": "No new particle-reflectance boost is accepted in V24.24.1; the release diagnoses whether/where the existing kernel fails."
+  },
+  "event_history_v24_26": {
+    "physics_baseline": "V24.24.1 specular-microfacet hybrid_mie_excess, real-index-only n(d), k=0",
+    "cuda_source_relation": "byte-identical CUDA_SRC to V24.24.1; only host-side online decomposition is added",
+    "materials": [
+      "loess",
+      "kaolin"
+    ],
+    "concentrations_g_L": [
+      0.5,
+      2.0,
+      4.0
+    ],
+    "excluded_sediment_channels_deg": [
+      150,
+      160
+    ],
+    "primary_detector_deg": 170,
+    "interaction_order_bins": [
+      "single_interaction",
+      "interaction_order_2",
+      "interaction_order_3",
+      "interaction_order_4plus"
+    ],
+    "single_event_mechanisms": [
+      "single_external_entry_reflection_escape",
+      "single_internal_reflection_escape",
+      "single_surface_transmission_escape",
+      "single_coherent_wave_escape"
+    ],
+    "multiple_event_mechanisms": [
+      "mixed_geometric_wave",
+      "geometric_only_multiple",
+      "wave_only_multiple",
+      "multiple_with_entry_reflection",
+      "multiple_with_internal_reflection"
+    ],
+    "closure_checks": [
+      "interaction_order_partition",
+      "multiple_branch_partition",
+      "single_branch_partition"
+    ],
+    "interpretation_rule": "No category is a fitted correction factor. Scores/fractions only diagnose the existing kernel.",
+    "status": "archived diagnostic baseline for V24.27 comparison"
+  },
+  "causal_last_event_v24_27": {
+    "physics_baseline": "V24.24.1 specular-microfacet hybrid_mie_excess, real-index-only n(d), k=0",
+    "cuda_physics_change": false,
+    "cuda_diagnostic_state_added": true,
+    "materials": [
+      "loess",
+      "kaolin"
+    ],
+    "concentrations_g_L": [
+      0.5,
+      2.0,
+      4.0
+    ],
+    "excluded_sediment_channels_deg": [
+      150,
+      160
+    ],
+    "primary_detector_deg": 170,
+    "event_type_codes": {
+      "1": "geometric_external_entry_reflection",
+      "2": "geometric_surface_transmission_refraction",
+      "3": "geometric_internal_reflection_path",
+      "4": "coherent_mie_wave",
+      "5": "morphology_wave_external_entry_reflection",
+      "6": "morphology_wave_surface_transmission_refraction",
+      "7": "morphology_wave_internal_reflection_path"
+    },
+    "new_diagnostics": [
+      "first particle event type",
+      "last particle event type",
+      "first and last event deflection angle",
+      "first-event backscatter relative to incident direction",
+      "first-event launch into source/rear hemisphere",
+      "last particle event interaction order",
+      "cumulative internal particle physical path",
+      "cumulative internal particle optical path n*L",
+      "water/suspension path after final particle event"
+    ],
+    "causal_question": "Does a genuine external surface reflection directly create H170, or do external reflections merely occur somewhere inside long multiple-scattering histories whose final event is another process?",
+    "absorption_readiness_note": "Internal physical path and optical path are measured before any future k(d) absorption test; V24.27 itself retains k=0 and applies no absorption change.",
+    "no_empirical_parameters": true
+  },
+  "exact_mie_event_rate_v24_29": {
+    "physics_change": "Only the event-rate cross-section is changed for Qsca<1 bins; per-event angular physics is V24.27 byte-for-byte in the relevant CUDA branch.",
+    "event_rate_invariant": "sigma_event(d)=sigma_sca,Mie(d)=Qsca(d)*pi*r^2 for every PSD bin",
+    "Qsca_ge_1_rule": "Identical to V24.27: sigma_geom=pi*r^2 plus sigma_wave=(Qsca-1)*pi*r^2.",
+    "Qsca_lt_1_rule": "No wave branch; geometric/interface event cross-section is thinned to Qsca*pi*r^2.",
+    "angular_kernel": "V24.27 25-degree specular-microfacet geometric branch plus coherent-Mie/morphology-wave excess branch unchanged.",
+    "loess_regression_expectation": "All production loess bins have Qsca>=1, so V24.29 should reproduce V24.27 with identical seeds to floating/RNG identity.",
+    "kaolin_test": "Isolates the event-rate correction in bins that caused the V24.27 1.599297 legacy/exact event-rate ratio.",
+    "materials": [
+      "loess",
+      "kaolin"
+    ],
+    "concentrations_g_L": [
+      0.5,
+      2.0,
+      4.0
+    ],
+    "known_bad_sediment_channels_deg": [
+      150,
+      160
+    ],
+    "no_empirical_parameters": true,
+    "retain_v24_27_causal_diagnostics": true
+  },
+  "experiment": "H170 full pre-turn angular-drift attribution; V24.29 exact-rate/V24.27 angular physics frozen",
+  "h170_final_turn_angular_state_v24_33": {
+    "diagnostic_only": true,
+    "physics_changed": false,
+    "cuda_transport_probabilities_changed": false,
+    "frozen_production_baseline": "V24.29.0",
+    "history_max_particle_events": 384,
+    "direct_final_turn_fields": [
+      "particle_bin",
+      "event_type",
+      "interaction_order",
+      "pre_axis_angle_deg",
+      "post_axis_angle_deg",
+      "event_deflection_deg"
+    ],
+    "source_axis_angle_definition": "0 deg = +y/forward away from source; 90 deg = lateral boundary; 180 deg = -y/sourceward",
+    "primary_question": "At high kaolin CSA, is the final forward-to-sourceward transition usually a large directional reversal, or a small event applied after the ray has already diffused close to 90 degrees?",
+    "diagnostic_thresholds_deg": {
+      "near_boundary_pre_axis_ge": [
+        75,
+        80,
+        85
+      ],
+      "small_event_deflection_le": [
+        10,
+        20,
+        30
+      ],
+      "large_reversal_gt": 90
+    },
+    "thresholds_are_diagnostic_only": true,
+    "no_empirical_parameters": true,
+    "materials": [
+      "loess",
+      "kaolin"
+    ],
+    "concentrations_g_L": [
+      0.5,
+      2.0,
+      4.0
+    ],
+    "known_bad_sediment_channels_deg": [
+      150,
+      160
+    ],
+    "v24_32_motivation": {
+      "max_history_overflow_fraction_of_H170_score": 0.028969957081545063,
+      "dominant_kaolin_final_turn_regime": "Qsca>=1 (~70% of complete H170 score)",
+      "result_source": "archived user-run V24.32 aggregate outputs packaged with this release"
+    }
+  },
+  "trapped_ray_audit_v24_36_9": {
+    "diagnostic_release": true,
+    "production_ray_campaign_enabled": false,
+    "audit_qsca_min": 1.0,
+    "samples_per_bin": 50000,
+    "smooth_control_samples_per_bin": 12000,
+    "seed": 243690,
+    "production_reflection_limit": 65,
+    "diagnostic_reflection_limit": 512,
+    "report_thresholds": [
+      1,
+      5,
+      10,
+      20,
+      40,
+      60,
+      65,
+      128,
+      256,
+      512
+    ],
+    "representative_order_bands": [
+      [
+        1,
+        1
+      ],
+      [
+        5,
+        9
+      ],
+      [
+        10,
+        19
+      ],
+      [
+        20,
+        39
+      ],
+      [
+        40,
+        59
+      ],
+      [
+        60,
+        64
+      ],
+      [
+        65,
+        127
+      ],
+      [
+        128,
+        255
+      ],
+      [
+        256,
+        511
+      ],
+      [
+        512,
+        512
+      ]
+    ],
+    "representative_ledgers_per_band_per_material": 1,
+    "ledger_max_interfaces": 513,
+    "smooth_control_enabled": true,
+    "invariant_tolerances": {
+      "snell_abs": 2e-05,
+      "reflection_vector_l2": 2e-05,
+      "surface_radius_rel": 2e-05,
+      "production_prefix_direction_l2": 2e-06,
+      "production_prefix_position_l2": 2e-06,
+      "probability_sum_abs": 2e-05,
+      "impact_rho2_mean_abs": 0.01,
+      "cpu_reconstruction_direction_l2": 3e-05,
+      "cpu_surface_radius_rel": 3e-05
+    }
+  }
+}

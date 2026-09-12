@@ -1,0 +1,28 @@
+{
+  "release": "V24.52.0",
+  "n_rays": 1000000,
+  "production_failure_count": 1,
+  "production_failure_fraction": 1e-06,
+  "watchdog_count": 1,
+  "geometry_failure_count": 0,
+  "nonfinite_count": 0,
+  "failure_code_count_closure": true,
+  "case_valid": false,
+  "particle_proposal_count": 3564076,
+  "particle_accessible_count": 3562454,
+  "particle_null_count": 1622,
+  "material": "loess",
+  "concentration_g_per_L": 4.0,
+  "seed": 2441200,
+  "elapsed_s": 65.4090457000002,
+  "sediment_run_classification": "DIAGNOSTIC / NOT PRODUCTION-AUTHORIZED",
+  "production_authorized_at_execution": false,
+  "failure_code_counts": {
+    "ACRYLIC_ANNULUS_BOUNCE_LIMIT": 1
+  },
+  "failure_subcode_counts": {
+    "2002": 1
+  },
+  "diagnostic_sample_count": 1,
+  "diagnostic_sample_limit": 512
+}

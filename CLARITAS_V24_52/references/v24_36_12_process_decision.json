@@ -1,0 +1,45 @@
+{
+  "gpu_acquisition_complete": true,
+  "diagnostic_integrity_passed": true,
+  "scientific_disposition": "PROCESS_DEFECT_CONFIRMED",
+  "fixed_microfacet_local_reversibility_passed": true,
+  "complete_kernel_test": "equilibrium surface-flux Monte Carlo; internal state measure proportional to n_particle^2*mu*dOmega, cross-interface comparison includes n^2 weighting; accepted rough and fallback outcomes included in final transition counts",
+  "macro_tir_complete_kernel": [
+    {
+      "release": "V24.36.12",
+      "material": "loess",
+      "event_weighted_outside_to_tir_flux": 0.0350886399056557,
+      "event_weighted_tir_to_outside_flux": 0.0102696137104285,
+      "relative_residual": 0.7073236882922534,
+      "z_score": 74.46161612789817,
+      "accepted_forward_fraction": 1.0,
+      "fallback_forward_fraction": 0.0,
+      "accepted_reverse_fraction": 1.0,
+      "fallback_reverse_fraction": 0.0,
+      "passed": false
+    },
+    {
+      "release": "V24.36.12",
+      "material": "kaolin",
+      "event_weighted_outside_to_tir_flux": 0.0340887199673955,
+      "event_weighted_tir_to_outside_flux": 0.0099101645014086,
+      "relative_residual": 0.7092831731174623,
+      "z_score": 69.78847374046761,
+      "accepted_forward_fraction": 1.0,
+      "fallback_forward_fraction": 0.0,
+      "accepted_reverse_fraction": 1.0,
+      "fallback_reverse_fraction": 0.0,
+      "passed": false
+    }
+  ],
+  "process_correction_authorized": false,
+  "production_65_reflection_numerical_sink_still_present": true,
+  "numerical_photon_destruction_removed_from_production": false,
+  "roughness_rms_slope_deg": 25.0,
+  "roughness_provenance_status": "inherited physically motivated but independently unvalidated morphology parameter",
+  "decision": "final_mixed_kernel_decision_test_complete",
+  "release": "V24.36.12",
+  "diagnostic_only": true,
+  "production_ray_campaign_authorized": false,
+  "sediment_transport_run": false
+}

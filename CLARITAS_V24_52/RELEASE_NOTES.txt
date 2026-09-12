@@ -1,0 +1,38 @@
+CLARITAS V24.52.0 — TARGETED VALIDATOR CORRECTION + FULL CAMPAIGN
+
+Purpose
+-------
+V24.52 corrects the V24.51 independent one-step reference for horizontal WATER and HEADSPACE rays crossing the curved localized-Scully free surface. It does not reopen or alter the V24.51 production apparatus geometry unless corrected validation proves a real production error.
+
+Independent reconstruction
+--------------------------
+The exact deterministic V24.51 500,000-state population reproduces the complete reported mismatch count:
+* WATER horizontal free-surface-before-wall cases: 3,225
+* HEADSPACE horizontal free-surface-before-wall cases: 1,824
+* total: 5,049
+* unexplained remainder: 0
+
+Validator correction
+--------------------
+The host oracle now independently solves the free-surface level set for horizontal rays and competes that intersection with the finite inner wall. Nine deterministic regressions cover wall-first, free-surface-first, tangential/no-crossing, near-axis, near-wall, near-surface and close-but-unambiguous cases. No tolerance relaxation is used.
+
+Production CUDA
+---------------
+Production CUDA_SRC is byte-identical to V24.51. No production geometry, optical, RNG, particle or detector physics changed in V24.52.
+
+Campaign behavior
+-----------------
+The exact million-ray production qualification and five-case integrity matrix remain fail-closed authorization gates. Sediment diagnostic execution is now orchestrated separately: a non-catastrophic release-gate/reference failure does not automatically hide diagnostic sediment output when transport remains diagnostically safe. Diagnostic sediment output never implies production authorization.
+
+Sediment diagnostics
+--------------------
+The runner inventories and attempts the six canonical cases (loess and kaolin at 0.5, 2 and 4 g/L), records all detector channels and H170, transport/failure counts and run metadata, and writes consolidated CSV/JSON/Markdown plus comparison plots where available.
+
+Packaging-environment status
+----------------------------
+Host/static validation: PASS.
+CUDA runtime: unavailable here.
+Corrected GPU 500k gate: NOT RUN here.
+Exact 1,000,000-ray qualification: NOT RUN here.
+Five-case integrity matrix: NOT RUN here.
+Sediment diagnostic simulations: NOT RUN here.

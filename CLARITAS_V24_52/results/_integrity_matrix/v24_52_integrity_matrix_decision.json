@@ -1,0 +1,13 @@
+{
+  "release": "V24.52.0",
+  "cross_case_integrity_matrix_run": true,
+  "cross_case_integrity_matrix_pass": false,
+  "integrity_matrix_rays_per_case": 100000,
+  "integrity_matrix_cases_required": 5,
+  "integrity_matrix_cases_run": 5,
+  "total_failures": 28,
+  "total_watchdogs": 0,
+  "total_nonfinite": 0,
+  "scientific_result_finalized": false,
+  "h170_used_for_design_or_acceptance": false
+}

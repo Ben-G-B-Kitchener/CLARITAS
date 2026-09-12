@@ -1,0 +1,29 @@
+{
+  "source_release": "V24.48.0",
+  "full_path_samples": 4096,
+  "full_path_global_orbit_differences": 12,
+  "full_path_residual_case_ids": [
+    143,
+    310,
+    687,
+    1407,
+    1650,
+    1948,
+    2010,
+    2531,
+    3026,
+    3056,
+    4059,
+    4076
+  ],
+  "historical_rays": 129,
+  "historical_global_orbit_differences": 2,
+  "historical_residual_ray_ids": [
+    37724,
+    67550
+  ],
+  "one_step_connected_solid_pass": true,
+  "particle_accessibility_pass": true,
+  "production_cuda_physics_changed": false,
+  "purpose": "Historical diagnostic evidence defining the V24.49 closure population; counts are not acceptance constants."
+}

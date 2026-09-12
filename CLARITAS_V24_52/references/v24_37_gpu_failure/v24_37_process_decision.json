@@ -1,0 +1,17 @@
+{
+  "release": "V24.37.0",
+  "decision": "V24.37_CORRECTION_NOT_AUTHORIZED",
+  "validated_physics_correction": false,
+  "sediment_campaign_authorized": false,
+  "gpu_acquisition_complete": true,
+  "local_optics_pass": true,
+  "corrected_kernel_reciprocity_pass": false,
+  "all_bins_pass": false,
+  "cross_interface_reciprocity_pass": false,
+  "probability_conservation_pass": true,
+  "legacy_identity_pass": true,
+  "old_65_reflection_photon_destruction_removed_in_corrected_mode": false,
+  "roughness_rms_slope_deg": 25.0,
+  "particle_k_zero": true,
+  "h170_used_for_design_or_acceptance": false
+}

@@ -1,0 +1,688 @@
+Create the next CLARITAS release, V24.48.0, using the supplied V24.47 package as the sole code baseline and the supplied V24.47 results as the diagnostic evidence.
+
+INPUTS
+- CLARITAS_V24_47(1).zip
+- results_v24_47.zip
+
+This is a real release-engineering task. Inspect the complete package and validation results before making changes. Implement the fixes, validate them as far as the available environment permits, update all release/version/package metadata, and RETURN THE COMPLETE FINAL V24.48.0 ZIP.
+
+Do not merely describe changes or provide patches/snippets.
+
+======================================================================
+PRIMARY OBJECTIVE
+======================================================================
+
+V24.47 introduced the corrected connected-solid acrylic topology and substantially improved the production geometry. The current evidence does NOT justify another speculative modification to the production transport physics.
+
+V24.48.0 is therefore primarily a VALIDATION-CORRECTION AND QUALIFICATION RELEASE.
+
+The production V24.47 optical/transport model must remain frozen unless a corrected validator produces concrete reproducible evidence of a genuine production error.
+
+The known V24.47 qualification failure is contaminated by multiple defects in the validation harness. Correct those defects first, then rerun qualification.
+
+The release must remain fail-closed.
+
+======================================================================
+IMPORTANT MODEL CONSTRAINTS
+======================================================================
+
+Preserve the existing CLARITAS physical modelling philosophy.
+
+DO NOT:
+
+- introduce empirical material-specific scatter multipliers;
+- introduce PSD-specific boost factors;
+- tune parameters to force agreement with expected results;
+- simplify the optical transport merely to make tests pass;
+- replace process-based physics with fitted correction factors;
+- move authoritative CUDA transport calculations into Python;
+- introduce CPU approximations as substitutes for the CUDA physics;
+- silently suppress failed rays;
+- discard difficult trajectories;
+- convert watchdog termination into a successful physical event;
+- weaken acceptance criteria simply to obtain a PASS;
+- special-case the supplied regression rays by identity;
+- modify historical/reference data to match the new code;
+- fabricate GPU validation if no compatible CUDA runtime is available.
+
+CUDA remains the authoritative production transport implementation.
+
+Python reference implementations are validation tools only and must independently reproduce the intended physical geometry/model.
+
+======================================================================
+V24.47 RESULTS TO INVESTIGATE
+======================================================================
+
+The V24.47 results showed:
+
+- boundary / microsurface GPU validation: PASS
+- deterministic connected-solid geometry tests: PASS
+- 500,000-state one-step CUDA/reference connected-solid comparison:
+  ZERO region/surface mismatches
+- corrected Rin-below-ZMIN topology regression: PASS
+- progress watchdog validation: PASS
+
+But final geometry qualification reported:
+
+- full-path comparison: 184 / 4096 mismatches
+- particle random accessibility: 21 / 100000 mismatches
+- historical 129-ray V24.46 regression: 0 / 129 passed
+- long-TIR qualification consequently failed
+
+These headline failures must NOT simply be accepted as evidence that the V24.47 production geometry is wrong.
+
+There are known validator defects that must be fixed.
+
+======================================================================
+FIX 1 — CUDA STATE ARRAY MEMORY LAYOUT
+======================================================================
+
+The V24.47 129-state regression constructs the state array approximately as:
+
+    states = rf[['x','y','z','vx','vy','vz']].to_numpy(np.float32)
+
+The resulting NumPy object can be Fortran-contiguous rather than C-contiguous.
+
+The CUDA kernel accesses the buffer as rows:
+
+    const float* q = states + 6*id;
+
+which assumes C-contiguous row-major [N,6] storage.
+
+CuPy can preserve the source memory layout when transferring the NumPy array, meaning the kernel can read scrambled state vectors.
+
+Correct this robustly.
+
+At minimum, the host-side state input should use an explicit contiguous representation equivalent to:
+
+    states = np.ascontiguousarray(
+        rf[['x','y','z','vx','vy','vz']].to_numpy(dtype=np.float32)
+    )
+
+However, do NOT fix only this one call site.
+
+Audit EVERY NumPy/CuPy host array passed to raw CUDA kernels in the V24.48 qualification/geometry validation path.
+
+For arrays whose CUDA indexing assumes C-order:
+
+- explicitly require C-contiguous storage;
+- assert expected dtype;
+- assert expected dimensions/shape;
+- preferably assert strides or contiguity immediately before launch;
+- fail loudly if an invalid layout reaches the launch boundary.
+
+Do not depend on NumPy/Pandas/CuPy implementation accidents.
+
+Add a regression test that deliberately creates an F-contiguous [N,6] input and verifies that the validation infrastructure either:
+1. safely converts it to the required layout, or
+2. rejects it before kernel execution.
+
+The test must demonstrate that this exact V24.47 failure mechanism cannot recur.
+
+======================================================================
+FIX 2 — PARTICLE ACCESSIBILITY REFERENCE MUST MATCH THE PHYSICAL MODEL
+======================================================================
+
+Audit:
+
+    sphere_particle_accessible_in_water()
+
+against the Python reference used by the particle accessibility validation.
+
+The production implementation evaluates free-surface clearance using the lowest free-surface location under the finite spherical footprint, i.e. conceptually:
+
+    rmin = max(0, rc - particle_radius)
+    zsurf = free_surface_z(rmin, ...)
+
+and applies the production floating-point geometry tolerance.
+
+The V24.47 Python reference instead appears to assess top clearance only at the particle centre radius, approximately:
+
+    top = free_surface(cx, cy, ...) - cz - r
+
+These are NOT equivalent for the spatially varying Scully-vortex free surface.
+
+Correct the independent Python reference so that it implements the SAME DEFINED GEOMETRIC CRITERION as production while remaining independently coded.
+
+Also reproduce the appropriate numerical tolerance policy.
+
+Do not simply call the production function from the reference test.
+
+The reference must remain genuinely independent.
+
+Add deterministic edge-case tests for particles:
+
+- on the axis;
+- near the sidewall;
+- near ZMIN;
+- close to the free surface;
+- crossing the radial variation in free-surface height;
+- exactly at tolerance;
+- just inside tolerance;
+- just outside tolerance.
+
+Then rerun the large random accessibility comparison.
+
+Zero unexplained production/reference classification mismatches should be the target.
+
+======================================================================
+FIX 3 — FULL-PATH WATCHDOG/CAP COMPARISON LOGIC
+======================================================================
+
+Audit the full-path opportunity validation.
+
+The V24.47 Python reference can validly return something equivalent to:
+
+    (-2, 8192)
+
+when no non-TIR opportunity is found before its validation execution cap.
+
+The V24.47 mismatch comparison nevertheless appears to contain logic equivalent to:
+
+    pmis += int(
+        int(pst[i]) != 1
+        or int(pos[i]) != es
+        or int(pic[i]) != ei
+    )
+
+This automatically marks a CUDA trajectory as wrong whenever the CUDA status is not 1, EVEN WHEN BOTH CUDA AND REFERENCE CORRECTLY REACH THE SAME VALIDATION CAP.
+
+Correct the comparison semantics.
+
+A watchdog/cap result must be compared as a watchdog/cap result, not against the successful-opportunity status.
+
+Define explicit comparable terminal-state categories such as:
+
+- physical opportunity found;
+- escaped/terminated physically;
+- watchdog/progress termination;
+- emergency execution cap;
+- invalid numerical state/error.
+
+The exact categories should reflect the actual code rather than forcing this suggested naming.
+
+CUDA and reference should agree on:
+
+- physical terminal class;
+- relevant interface/opportunity index where applicable;
+- interaction count where applicable;
+- watchdog/cap semantics.
+
+Do NOT reinterpret a watchdog/cap trajectory as successful physics.
+
+It simply must not be called a CUDA/reference mismatch when both implementations have reached the same defined nonphysical validation termination condition.
+
+V24.47 analysis indicated that roughly 176 of the 4096 reference paths reach the reference's own 8192 cap, meaning most of the headline 184 mismatches may be caused directly by this comparison bug.
+
+Verify this independently from the supplied files.
+
+Do not hard-code the number 176 into the validator.
+
+======================================================================
+RESIDUAL FULL-PATH DISCREPANCIES
+======================================================================
+
+After correcting the cap/status comparison, investigate EVERY remaining genuine CUDA/reference discrepancy individually.
+
+Produce machine-readable diagnostics containing, as appropriate:
+
+- seed/index;
+- initial position;
+- initial direction;
+- starting region;
+- CUDA terminal state;
+- reference terminal state;
+- interaction count;
+- interface/surface sequence;
+- region sequence;
+- intersection distances;
+- boundary coordinates;
+- surface normals;
+- refractive-index transition;
+- incidence angle;
+- critical angle;
+- Fresnel/TIR decision;
+- progress metric;
+- watchdog counters;
+- emergency-cap state;
+- relevant tolerances.
+
+Do not make speculative production changes just because a few cases remain.
+
+First determine whether each residual discrepancy originates from:
+
+1. the Python reference;
+2. floating-point/tolerance semantics;
+3. the validation harness;
+4. genuine CUDA production geometry/transport.
+
+Only category 4 justifies a production change.
+
+If a production change is genuinely necessary, make the smallest physically correct fix and document the evidence.
+
+======================================================================
+CONNECTED-SOLID TOPOLOGY MUST REMAIN INTACT
+======================================================================
+
+Preserve the V24.47 connected-solid acrylic topology:
+
+- acrylic consists of the connected union of the finite sidewall and solid bottom disc;
+- r = Rin is an acrylic/water optical boundary only over the water-side axial interval;
+- below ZMIN, r = Rin is interior acrylic and must NOT generate a Fresnel event;
+- the annular part of z = ZMIN joining acrylic sidewall/bottom is acrylic-to-acrylic continuity;
+- no Fresnel event or random-number draw is allowed at an internal acrylic/acrylic continuation.
+
+Do not regress this behaviour.
+
+The previous fixed 64-reflection rejection rule must remain removed.
+
+Do not reintroduce an arbitrary low reflection-count rejection threshold.
+
+The shared progress-based watchdog and high emergency execution cap must remain conceptually distinct from physical rejection.
+
+======================================================================
+RNG INTEGRITY
+======================================================================
+
+Audit RNG consumption around all corrected topology transitions.
+
+Internal acrylic/acrylic continuation must consume ZERO optical Fresnel RNG draws.
+
+A topology correction must not shift the random stream accidentally.
+
+For true optical boundaries:
+
+- preserve the defined random-draw ordering;
+- preserve deterministic replay from the same seed/state;
+- document any intentional RNG-stream change.
+
+Add deterministic RNG-accounting regression coverage where practical.
+
+======================================================================
+VALIDATION SEQUENCE
+======================================================================
+
+Preserve a strict fail-closed validation sequence.
+
+The intended high-level order is:
+
+1. package/preflight validation
+2. host/static/ABI validation
+3. CUDA boundary/microsurface suite
+4. deterministic connected-solid geometry tests
+5. large one-step CUDA/reference geometry comparison
+6. corrected particle accessibility validation
+7. corrected historical V24.46 failure-state regression
+8. corrected full-path / long-TIR validation
+9. complete connected-solid GPU geometry gate
+10. exact 1,000,000-ray production qualification
+11. five-case cross-case integrity matrix
+12. qualification receipt
+13. only then H170 sediment campaign authorization/execution
+
+If any prerequisite fails:
+
+    production_transport_validated = false
+    sediment_campaign_authorized = false
+
+and downstream campaign execution must not proceed.
+
+No partial PASS may authorize production transport.
+
+======================================================================
+129 HISTORICAL V24.46 STATES
+======================================================================
+
+Retain the real 129 V24.46 failure states as a regression set.
+
+After fixing array layout, rerun them correctly.
+
+Do NOT require the new implementation to reproduce an old buggy path merely because historical output exists.
+
+The validation question is whether each state now follows the independently reconstructed physically valid connected-solid path according to the current specification.
+
+Report:
+
+- number passing;
+- number failing;
+- maximum interaction depth;
+- number exceeding 64 interactions;
+- number exceeding 1024 interactions;
+- maximum interactions observed;
+- watchdog/emergency-cap outcomes;
+- details of every failure.
+
+======================================================================
+ONE-STEP LARGE RANDOM TEST
+======================================================================
+
+Retain or improve the 500,000-state one-step comparison.
+
+It was one of the strongest V24.47 results and should remain a required regression gate.
+
+Compare at least:
+
+- next surface;
+- next region;
+- intersection point;
+- intersection distance;
+- surface normal where relevant;
+- internal-vs-optical-boundary classification.
+
+Do not weaken this test.
+
+======================================================================
+MILLION-RAY QUALIFICATION
+======================================================================
+
+The exact production qualification must contain 1,000,000 rays.
+
+Do not silently reduce it for runtime convenience.
+
+A small smoke test may be added separately, but it must never substitute for the exact qualification.
+
+The million-ray qualification MUST NOT run until the corrected geometry gate passes.
+
+Record:
+
+- exact ray count;
+- seeds/configuration;
+- termination classifications;
+- detector/transport integrity metrics already required by CLARITAS;
+- watchdog counts;
+- emergency-cap counts;
+- NaN/Inf counts;
+- invalid region/surface counts;
+- energy/weight/probability sanity metrics appropriate to the existing model.
+
+If the environment lacks a CUDA runtime, leave this stage explicitly NOT RUN.
+
+Do not simulate a successful result on CPU.
+
+======================================================================
+FIVE-CASE INTEGRITY MATRIX
+======================================================================
+
+Preserve the existing five-case cross-case integrity matrix and its purpose.
+
+Do not reduce the number of cases.
+
+Do not manufacture PASS results.
+
+The matrix must execute only after all prerequisite geometry and million-ray gates pass.
+
+Retain machine-readable results.
+
+======================================================================
+CUDA/PYTHON ABI
+======================================================================
+
+V24.47 reported approximately:
+
+    trace_kernel = 155 arguments
+    score_detectors_kernel = 47 arguments
+
+Do a fresh audit against the actual V24.48 source.
+
+Do not assume those counts remain correct.
+
+Verify:
+
+- declaration;
+- compiled kernel signature;
+- Python launch arguments;
+- order;
+- dtype;
+- scalar width;
+- pointers;
+- optional buffers;
+- structure packing if any.
+
+Any mismatch is a release blocker.
+
+======================================================================
+NUMERICAL ROBUSTNESS
+======================================================================
+
+Audit geometry tolerances carefully.
+
+Do not solve boundary disagreements merely by increasing epsilon until tests pass.
+
+For every tolerance:
+
+- identify its physical/numerical purpose;
+- keep it scale-appropriate;
+- ensure CUDA/reference semantics agree;
+- test points immediately either side of the threshold.
+
+Reject NaN/Inf states explicitly.
+
+Avoid exact floating-point equality for geometric predicates unless it is demonstrably appropriate.
+
+======================================================================
+NO HIDDEN FALLBACKS
+======================================================================
+
+Search the entire package for:
+
+- CPU transport fallbacks;
+- debug-only geometry paths;
+- old topology implementations;
+- obsolete 64-reflection logic;
+- silently selected legacy kernels;
+- unused but callable alternate transport implementations;
+- environment-variable shortcuts that bypass CUDA qualification;
+- hard-coded PASS states;
+- exception handlers that convert failures into success.
+
+Remove or disable obsolete executable paths where safe.
+
+If retained for historical/reference purposes, clearly mark them non-production and ensure they cannot be selected accidentally.
+
+======================================================================
+RELEASE VERSIONING
+======================================================================
+
+Make this release consistently:
+
+    V24.48.0
+
+Update ALL appropriate locations, including as applicable:
+
+- source version constants;
+- directory/package names;
+- script names where versioned;
+- generated reports;
+- release metadata;
+- README/version references;
+- qualification receipts;
+- validation output metadata;
+- package checks;
+- manifests;
+- SHA256SUMS;
+- release notes.
+
+Do a repository-wide search for stale V24.47 strings.
+
+Historical documentation/test names may retain V24.47 where they explicitly refer to the historical release, but current-release metadata must say V24.48.0.
+
+======================================================================
+DOCUMENTATION
+======================================================================
+
+Add a clear V24.48 release note / engineering note explaining:
+
+1. what V24.47 changed;
+2. what appeared to fail;
+3. how the validation harness defects were identified;
+4. the memory-layout defect;
+5. the particle-reference geometry discrepancy;
+6. the watchdog/cap comparison defect;
+7. any residual discrepancies found;
+8. whether production physics changed;
+9. why any production physics change was or was not necessary;
+10. validation actually executed;
+11. validation not executed due to environment limitations.
+
+Do not describe validator corrections as physics improvements unless they genuinely changed production physics.
+
+======================================================================
+TESTING IN YOUR ENVIRONMENT
+======================================================================
+
+Run everything your environment genuinely supports.
+
+At minimum, run:
+
+- syntax/import checks;
+- package preflight;
+- host-only verifier;
+- static consistency checks;
+- manifest verification;
+- CUDA/Python ABI/source audit;
+- unit tests;
+- deterministic CPU/reference geometry tests;
+- packaging integrity tests.
+
+If CUDA is genuinely available, also run the complete GPU sequence.
+
+If CUDA is NOT available:
+
+- state this clearly;
+- mark GPU stages NOT RUN;
+- do not claim GPU success;
+- leave production qualification false;
+- leave sediment authorization false.
+
+No fabricated results.
+
+======================================================================
+QUALIFICATION OUTPUTS
+======================================================================
+
+All major validation stages must emit machine-readable results, preferably JSON and/or CSV as appropriate.
+
+Include enough information to diagnose failures without rerunning the entire campaign.
+
+A top-level qualification summary should state at least:
+
+    package_validation
+    host_validation
+    cuda_available
+    cuda_abi_validation
+    boundary_gpu_validation
+    connected_solid_validation
+    one_step_random_validation
+    particle_accessibility_validation
+    historical_129_state_validation
+    full_path_validation
+    long_tir_validation
+    million_ray_qualification
+    cross_case_integrity_matrix
+    production_transport_validated
+    sediment_campaign_authorized
+
+Use PASS / FAIL / NOT RUN explicitly.
+
+======================================================================
+PACKAGING REQUIREMENTS
+======================================================================
+
+Return ONE final archive:
+
+    CLARITAS_V24_48.zip
+
+containing exactly one top-level folder:
+
+    CLARITAS_V24_48/
+
+Do not give me merely modified files.
+
+Do not give me a diff instead of the release.
+
+Do not omit files from the previous working package unless intentionally removed and documented.
+
+Do not include:
+
+- __pycache__
+- .pyc files
+- CuPy cache
+- Jitify cache
+- temporary build files
+- editor files
+- accidental nested copies of previous ZIPs
+- enormous transient validation artefacts unless deliberately part of the release evidence
+
+Include the validation scripts and release documentation required to reproduce qualification.
+
+Generate SHA256SUMS.txt covering all release-critical files.
+
+Verify every listed hash after package construction.
+
+Then clean-extract the FINAL ZIP into a fresh temporary directory and run package/preflight validation FROM THE EXTRACTED COPY.
+
+Do not validate one tree and package another.
+
+Finally test ZIP compressed-data integrity.
+
+Report the final archive SHA-256.
+
+======================================================================
+REPRODUCIBLE USER RUN COMMANDS
+======================================================================
+
+Provide the exact commands I should run after extracting the release in my normal environment.
+
+Assume approximately:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_48"
+    conda activate claritas
+
+The commands must clear stale CuPy/Jitify caches before qualification.
+
+Provide a single canonical sequence analogous to:
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_48_package.py && \
+    python verify_v24_48_corrected_validation.py && \
+    python run_v24_48_campaign.py
+
+Use the ACTUAL filenames you create.
+
+The campaign runner must itself enforce prerequisite ordering and fail closed.
+
+I should not need to manually infer which validation script comes next.
+
+======================================================================
+FINAL RESPONSE
+======================================================================
+
+When finished, give me:
+
+1. a concise engineering summary of what changed;
+2. a clear statement of whether production CUDA physics changed;
+3. validation results actually obtained;
+4. anything not run and why;
+5. status of:
+       production_transport_validated
+       sediment_campaign_authorized
+6. final CUDA/Python ABI audit;
+7. final ZIP structure;
+8. final ZIP SHA-256;
+9. exact run commands;
+10. a DOWNLOADABLE LINK TO CLARITAS_V24_48.zip.
+
+Most importantly:
+
+DO THE WORK AND RETURN THE COMPLETE ZIP.
+
+Do not stop after analysis.
+Do not ask me to perform edits manually.
+Do not return only patches.
+Do not claim tests you did not execute.
+Do not weaken the physical model to make qualification pass.
+Do not modify production transport unless corrected validation demonstrates a genuine production defect.

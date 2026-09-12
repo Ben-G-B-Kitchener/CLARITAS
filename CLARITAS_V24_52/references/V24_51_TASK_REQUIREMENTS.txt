@@ -1,0 +1,1468 @@
+Create the next CLARITAS release, V24.51.0, using the supplied V24.50 package as the sole code baseline and the supplied V24.50 GPU results as the primary diagnostic evidence.
+
+INPUTS
+- CLARITAS_V24_50.zip
+- results(20260912-202251).zip
+
+This is a real release-engineering task.
+
+Inspect the COMPLETE package and COMPLETE V24.50 results before changing anything.
+
+Implement the work, validate it as far as the environment genuinely permits, update all release/package/version metadata, and RETURN THE COMPLETE FINAL RELEASE ZIP:
+
+    CLARITAS_V24_51.zip
+
+Do not merely describe the work.
+Do not return patches or snippets.
+Do not ask me to perform edits manually.
+Do not stop after fixing the first geometry defect you encounter.
+
+======================================================================
+PRIMARY OBJECTIVE — SOLVE THE GEOMETRY AS ONE SYSTEM
+======================================================================
+
+The recent CLARITAS release sequence has become too incremental.
+
+Several releases have corrected one local geometry or validation issue at a time, only for the next large test to expose another closely related issue.
+
+V24.51.0 must BREAK THAT CYCLE.
+
+This release is not:
+
+    "fix the next observed geometry failure"
+
+It is:
+
+    "reconstruct, audit, correct and validate the complete CLARITAS
+     apparatus geometry/topology as one coherent physical model."
+
+Do not wait for successive production runs to reveal individual missing surfaces, inconsistent extents, region ownership errors or boundary-selection problems one at a time.
+
+Perform the complete geometry/topology analysis in THIS release.
+
+The final model must be internally coherent across:
+
+- production CUDA transport;
+- independent host/reference geometry;
+- apparatus configuration;
+- free-surface model;
+- acrylic vessel;
+- water;
+- headspace/air;
+- vessel bottom;
+- vessel sidewall;
+- vessel upper extent;
+- detectors;
+- sediment particles;
+- particle accessibility;
+- boundary selection;
+- region transitions;
+- optical interfaces;
+- RNG consumption;
+- source generation;
+- production qualification;
+- sediment campaign.
+
+This is intended to be the comprehensive geometry release, not another narrow patch release.
+
+======================================================================
+IMPORTANT — DO NOT CREATE ANOTHER AUDIT RABBIT-HOLE
+======================================================================
+
+The geometry analysis must be comprehensive but FINITE.
+
+Do not respond to each discovered issue by creating another future audit stage.
+
+Instead:
+
+1. reconstruct the complete intended apparatus geometry;
+2. define all regions and interfaces explicitly;
+3. compare that definition against every executable geometry path;
+4. correct all demonstrated inconsistencies in one implementation pass;
+5. validate the resulting complete model;
+6. run production qualification;
+7. run the sediment cases and report them properly.
+
+Do not stop after correcting the currently known sidewall issue.
+
+If other geometry inconsistencies are found during the comprehensive audit, FIX THEM IN V24.51 where physically justified.
+
+The goal is to emerge with ONE coherent geometry model.
+
+======================================================================
+CURRENT V24.50 STATUS
+======================================================================
+
+V24.50 successfully closed the previous validator problems.
+
+The supplied GPU results should be independently inspected, but current evidence is approximately:
+
+- CUDA/reference scalar input parity: PASS
+- case-1650 input parity regression: PASS
+- boundary/microsurface validation: PASS
+- deterministic connected-solid geometry: PASS
+- 500,000-state one-step CUDA/reference geometry comparison: PASS
+- 100,000-state particle accessibility comparison: PASS
+- historical residual local replay: PASS
+- long-path residual local replay: PASS
+- connected-solid GPU geometry gate: PASS
+
+The exact 1,000,000-ray production qualification then ran and exposed a REAL production geometry problem:
+
+    approximately 7,734 / 1,000,000 rays failed
+
+The failures were concentrated in acrylic transport and reported approximately as:
+
+    ACRYLIC_ANNULUS_NO_INTERSECTION
+    ACRYLIC_NO_INTERSECTION
+
+with:
+
+- watchdog failures: approximately zero
+- non-finite-state failures: approximately zero
+- microsurface failures: approximately zero
+- water-no-boundary failures: approximately zero
+
+The five-case integrity matrix therefore correctly did not run.
+
+Verify all of this from the supplied result files.
+
+Do not simply trust the numbers in this prompt.
+
+======================================================================
+KNOWN SIDEWALL / FREE-SURFACE INCONSISTENCY
+======================================================================
+
+The current evidence indicates an important geometry inconsistency.
+
+The model appears to use approximately:
+
+    ZMAX = +0.049 m
+
+both as:
+
+1. a water/free-surface reference elevation; and
+2. the upper physical extent of the acrylic sidewall.
+
+Those are physically different concepts.
+
+The localized vortex/free-surface model can place the local water surface ABOVE +0.049 m near the wall.
+
+The V24.50 production failures strongly suggest that the water-side boundary selector can therefore send a ray through the inner cylindrical wall at an elevation where the connected-solid acrylic geometry subsequently says that no acrylic exists.
+
+This must be investigated as part of the COMPLETE geometry reconstruction.
+
+Do NOT merely patch:
+
+    if z > old_ZMAX: ignore cylinder
+
+That could leave water occupying a region with no containing vessel wall.
+
+Correct the underlying physical geometry.
+
+======================================================================
+SEPARATE PHYSICAL GEOMETRY PARAMETERS
+======================================================================
+
+Audit the use of all vertical geometry parameters.
+
+In particular, do not use one variable for physically distinct concepts.
+
+The model should distinguish concepts such as:
+
+    Z_WATER_MEAN
+    Z_FREE_SURFACE(r,theta,t)
+    Z_CELL_BOTTOM
+    Z_WALL_TOP
+    Z_OUTER_BOTTOM
+    detector elevations
+    source elevations
+
+Use actual codebase naming conventions where appropriate.
+
+Do not blindly impose these exact names.
+
+The key requirement is semantic separation.
+
+The physical top of the acrylic tube must not be inferred merely from the mean free-surface elevation.
+
+======================================================================
+AUTHORITATIVE APPARATUS GEOMETRY
+======================================================================
+
+Reconstruct the apparatus dimensions from the BEST AUTHORITATIVE INFORMATION AVAILABLE IN THE PACKAGE AND PROJECT MATERIAL.
+
+Search the supplied CLARITAS package for:
+
+- apparatus specifications;
+- dimensions;
+- comments;
+- documentation;
+- README files;
+- historical geometry constants;
+- detector placement;
+- vessel dimensions;
+- source geometry;
+- previous validation references;
+- TARDIIS/experimental apparatus references if packaged.
+
+Do not invent dimensions.
+
+For every important physical dimension, identify its provenance.
+
+Create a machine-readable geometry manifest such as:
+
+    v24_51_geometry_manifest.json
+
+containing, where applicable:
+
+    parameter
+    value
+    unit
+    physical meaning
+    source/provenance
+    CUDA representation
+    host/reference representation
+    uncertainty/assumption status
+
+If an important dimension cannot be established authoritatively:
+
+- say so explicitly;
+- identify the existing V24.50 assumption;
+- do not silently invent a replacement.
+
+If external authoritative literature supplied or referenced by the project is required and internet access is available, verify it.
+
+If internet access is unavailable, do not fabricate verification.
+
+======================================================================
+BUILD AN EXPLICIT REGION MODEL
+======================================================================
+
+Define the complete physical region model explicitly.
+
+At minimum determine the intended existence and extents of:
+
+- WATER
+- AIR / HEADSPACE
+- ACRYLIC SIDEWALL
+- ACRYLIC BOTTOM
+- EXTERNAL AIR
+- SEDIMENT PARTICLES
+- any detector-sensitive region where geometrically relevant
+
+For every region define:
+
+- radial support;
+- axial support;
+- dependence on free-surface position;
+- material;
+- neighboring regions;
+- legal incoming transitions;
+- legal outgoing transitions.
+
+Produce documentation and machine-readable representation.
+
+There must be no physically occupied point which has contradictory region ownership.
+
+There must be no unexplained holes.
+
+There must be no accidental overlapping materials unless intentionally represented as an interface.
+
+======================================================================
+BUILD AN EXPLICIT SURFACE / INTERFACE MODEL
+======================================================================
+
+Enumerate every physical boundary used by transport.
+
+For each surface identify:
+
+- surface ID;
+- physical name;
+- mathematical definition;
+- finite support;
+- adjoining material on side A;
+- adjoining material on side B;
+- whether it is optical;
+- whether Fresnel processing is required;
+- whether RNG is consumed;
+- normal convention;
+- valid z/r domain;
+- owning intersection routine.
+
+Likely categories include, depending on the actual model:
+
+- inner acrylic cylinder below water surface;
+- inner acrylic cylinder above water surface;
+- outer acrylic cylinder;
+- acrylic bottom inner face;
+- acrylic bottom outer face;
+- acrylic top face;
+- water/air free surface;
+- particle surfaces;
+- detector interfaces.
+
+Do not assume this list is complete.
+
+Discover the actual model.
+
+======================================================================
+FINITE SURFACE SUPPORT MUST BE CONSISTENT EVERYWHERE
+======================================================================
+
+This is critical.
+
+Every intersection routine must respect the same physical finite support.
+
+For example, if an inner cylinder exists only between physical axial limits, then:
+
+- water-side intersection selection;
+- air-side intersection selection;
+- acrylic-side intersection selection;
+- independent reference geometry;
+- deterministic tests;
+- random one-step tests
+
+must use the SAME physical support.
+
+Do not allow one region to treat a cylinder as infinite while another treats it as finite.
+
+Likewise audit:
+
+- planes;
+- annuli;
+- discs;
+- free surface;
+- outer wall;
+- bottom;
+- upper rim/top face.
+
+======================================================================
+WATER / FREE-SURFACE / HEADSPACE TOPOLOGY
+======================================================================
+
+Fully examine the water/free-surface/headspace model.
+
+For any point inside the bore:
+
+    below local free surface -> WATER
+    above local free surface -> HEADSPACE/AIR
+
+subject to the actual physical cell geometry.
+
+The acrylic sidewall should continue according to the physical vessel dimensions, not stop merely because water stops.
+
+At the inner wall:
+
+- below local water surface:
+      WATER <-> ACRYLIC
+
+- above local water surface:
+      HEADSPACE/AIR <-> ACRYLIC
+
+The same physical cylindrical wall may therefore border different internal media at different z/position.
+
+Ensure production CUDA handles this consistently.
+
+======================================================================
+CONNECTED ACRYLIC SOLID
+======================================================================
+
+Preserve the correct connected-solid concept introduced previously, but generalize it to the correct complete vessel geometry.
+
+The acrylic solid should represent the actual physical union of the vessel components.
+
+Audit:
+
+- sidewall;
+- bottom;
+- upper end/rim if represented;
+- internal acrylic/acrylic continuation;
+- exterior surfaces.
+
+Internal joins in one continuous acrylic body must not generate fictitious Fresnel events.
+
+No RNG draw should occur at an internal acrylic/acrylic continuation.
+
+======================================================================
+TOP OF THE ACRYLIC CELL
+======================================================================
+
+Determine the actual intended physical top of the acrylic tube.
+
+Do not assume the old `ZMAX` is correct.
+
+If project/apparatus evidence establishes a tube length and bottom reference, derive the wall-top coordinate explicitly and document the derivation.
+
+Check that:
+
+    maximum physically possible water/free-surface elevation
+        <
+    acrylic wall top
+
+if that is what the actual apparatus requires.
+
+If not, document the true relationship.
+
+Add a deterministic validation asserting the correct relationship.
+
+======================================================================
+BOTTOM GEOMETRY
+======================================================================
+
+Re-audit the bottom at the same time.
+
+Do not assume that because the V24.47 bottom correction passed previous tests the entire bottom representation is necessarily complete.
+
+Verify:
+
+- inner bottom water/acrylic boundary;
+- annular acrylic/acrylic continuation;
+- acrylic outer-bottom surface;
+- radial support;
+- thickness;
+- sidewall/bottom connection;
+- surface normals;
+- region transitions;
+- RNG behavior.
+
+Do not change a correct implementation unnecessarily.
+
+======================================================================
+OUTER WALL AND EXTERNAL REGION
+======================================================================
+
+Verify the complete outer cylindrical acrylic boundary.
+
+Check:
+
+- lower extent;
+- upper extent;
+- outer radius;
+- external material;
+- topological closure with bottom/top surfaces.
+
+Ensure no acrylic state can legitimately exist from which no physical boundary can be reached merely because a surface is missing from the solver.
+
+======================================================================
+TOP FACE / OPEN TUBE GEOMETRY
+======================================================================
+
+Determine the actual apparatus topology at the upper end of the acrylic tube.
+
+For example, establish whether the tube is physically open with:
+
+- an acrylic annular top face;
+- air/headspace inside the bore;
+- external air outside;
+
+or whether another closure exists.
+
+Implement the actual apparatus.
+
+Do not simply extend an infinite cylinder indefinitely.
+
+The complete acrylic solid must be finite and topologically coherent.
+
+======================================================================
+DETECTOR GEOMETRY
+======================================================================
+
+Audit detector geometry as part of the same apparatus reconstruction.
+
+Verify:
+
+- detector positions;
+- active area;
+- orientation;
+- finite aperture/support;
+- material transitions if modeled;
+- angular response;
+- whether detector geometry intersects or conflicts with vessel geometry.
+
+Do not modify validated detector physics without evidence.
+
+But ensure the geometric placement is consistent with the reconstructed apparatus.
+
+======================================================================
+SOURCE GEOMETRY
+======================================================================
+
+Audit source generation positions against the complete region model.
+
+Every generated source state must begin:
+
+- in the intended physical region;
+- outside acrylic;
+- outside impossible overlap;
+- inside permitted particle/water volume as appropriate.
+
+Add assertions.
+
+======================================================================
+SEDIMENT PARTICLE GEOMETRY
+======================================================================
+
+Audit sediment-particle placement as part of the full geometry analysis.
+
+Verify:
+
+- allowed particle volume;
+- vessel-wall clearance;
+- bottom clearance;
+- free-surface clearance;
+- particle radius handling;
+- finite-footprint free-surface rule;
+- overlap policy;
+- any PSD-dependent geometry generation;
+- particle material/optical interfaces.
+
+Preserve the process-based modelling philosophy.
+
+DO NOT introduce:
+
+- empirical material scatter multipliers;
+- PSD-specific boost factors;
+- fitted detector gains;
+- arbitrary correction coefficients.
+
+======================================================================
+SYSTEMATIC STATIC GEOMETRY AUDIT
+======================================================================
+
+Search ALL executable geometry code for inconsistent constants or geometry definitions.
+
+Look for:
+
+- Rin / Rout duplicates;
+- ZMIN / ZMAX duplicates;
+- hard-coded elevations;
+- infinite cylinder helpers used for finite surfaces;
+- alternate sidewall implementations;
+- obsolete geometry paths;
+- legacy V24.xx topology;
+- host/CUDA geometry drift;
+- hidden fallback geometry;
+- validation-only geometry accidentally differing from production.
+
+Produce a finite audit report.
+
+Do not merely grep and dump thousands of lines.
+
+Summarize each executable geometry path and whether it agrees with the canonical V24.51 geometry manifest.
+
+======================================================================
+GEOMETRY INVARIANTS
+======================================================================
+
+Create explicit invariants that the model must satisfy.
+
+Examples:
+
+1. WATER may never exist outside the physical vessel bore.
+
+2. Every water-side wall transition must enter actual acrylic.
+
+3. Every acrylic state must have at least one valid forward physical boundary for a finite nonzero direction.
+
+4. Internal acrylic/acrylic continuation never invokes Fresnel.
+
+5. Headspace above the water surface remains bounded by the physical acrylic wall.
+
+6. No source or sediment particle begins outside the permitted region.
+
+7. No region transition jumps directly through a physical material.
+
+8. Every surface has finite support consistent across all region solvers.
+
+9. The free surface remains within the physical containing vessel for every supported experiment configuration.
+
+Implement deterministic tests for these and other appropriate invariants.
+
+======================================================================
+LARGE RANDOM REGION-CLASSIFICATION TEST
+======================================================================
+
+Add a large independent random spatial classification test.
+
+Sample points throughout and around the complete apparatus bounding volume.
+
+For each point compare independent host classification against CUDA/production semantics for:
+
+- water;
+- air/headspace;
+- acrylic;
+- external region;
+- sediment occupancy where applicable.
+
+Pay particular attention to:
+
+- sidewall boundaries;
+- bottom;
+- top rim;
+- free surface;
+- wall/free-surface intersection;
+- bottom/sidewall join;
+- outer wall.
+
+Use enough states to make the test meaningful.
+
+Do not replace existing tests; add this as a whole-apparatus topology check.
+
+======================================================================
+LARGE RANDOM RAY ONE-STEP TEST
+======================================================================
+
+Retain the successful 500,000-state one-step CUDA/reference comparison.
+
+Expand its state generation if necessary so it samples the COMPLETE corrected apparatus, including:
+
+- water;
+- headspace;
+- acrylic;
+- near free surface;
+- near wall top;
+- near bottom;
+- near outer wall;
+- near top annulus/rim.
+
+Do not restrict it to the old water-height-limited geometry.
+
+Require zero unexplained semantic mismatches.
+
+======================================================================
+TARGETED REGRESSION FOR THE 7,734 FAILURE MECHANISM
+======================================================================
+
+Use the V24.50 million-ray failure samples as a regression population.
+
+For every stored failure state available:
+
+- replay it under V24.51;
+- verify the starting region;
+- verify the preceding water/acrylic boundary event where reconstructable;
+- verify that the acrylic state is physically inside actual acrylic;
+- verify a valid subsequent physical intersection exists;
+- ensure ACRYLIC_NO_INTERSECTION is eliminated unless a genuinely invalid state is demonstrated.
+
+Report:
+
+    states tested
+    states corrected
+    residual failures
+    failure classifications
+
+Do not hard-code their expected next surfaces.
+
+Use the corrected geometry.
+
+======================================================================
+NO MORE "PATCH THE OBSERVED FAILURE" LOGIC
+======================================================================
+
+Do not merely special-case:
+
+    r ~= Rin + EPS_F and z > old_ZMAX
+
+That would be another narrow patch.
+
+The production fix must arise naturally from the canonical complete geometry model.
+
+The previous failure samples are REGRESSION TESTS, not implementation conditions.
+
+======================================================================
+PRODUCTION CUDA CHANGES
+======================================================================
+
+Unlike V24.48–V24.50, V24.51 MAY modify production CUDA because the V24.50 million-ray run has now demonstrated a genuine production geometry inconsistency.
+
+However:
+
+- make only physically justified geometry changes;
+- derive them from the complete apparatus reconstruction;
+- do not tune to the million-ray failure states;
+- do not alter unrelated optical/scattering physics;
+- do not add empirical corrections.
+
+Clearly report every production CUDA change.
+
+======================================================================
+PRESERVE PREVIOUS VALIDATION FIXES
+======================================================================
+
+Do not regress any of the previously closed validator issues:
+
+- C-contiguous CUDA input arrays;
+- independent particle accessibility reference;
+- correct watchdog/cap comparator semantics;
+- local replay methodology;
+- float32 CUDA scalar input parity;
+- terminal-state semantic separation;
+- stale process-decision correction;
+- geometry decision refresh before exits.
+
+All remain required.
+
+======================================================================
+RNG INTEGRITY
+======================================================================
+
+Geometry corrections may change which physical boundary a ray encounters.
+
+That is legitimate where the old geometry was wrong.
+
+However, within a given physical interface event:
+
+- preserve defined Fresnel RNG ordering;
+- consume zero Fresnel RNG at internal acrylic/acrylic continuation;
+- do not introduce arbitrary extra random draws.
+
+Document any expected stream changes caused by corrected physical topology.
+
+======================================================================
+CUDA/PYTHON ABI
+======================================================================
+
+Perform a fresh complete ABI audit after all geometry changes.
+
+Verify:
+
+- trace kernel declaration;
+- score kernel declaration;
+- Python launch argument count;
+- order;
+- scalar width;
+- pointer type;
+- optional buffers;
+- added geometry parameters.
+
+Do NOT assume the previous:
+
+    trace_kernel = 155
+    score_detectors_kernel = 47
+
+counts remain unchanged.
+
+If a new explicit `Z_WALL_TOP` or similar production scalar is required, update the ABI cleanly rather than overloading an unrelated parameter.
+
+ABI mismatch is a release blocker.
+
+======================================================================
+CANONICAL GEOMETRY PARAMETERIZATION
+======================================================================
+
+Strongly prefer one authoritative geometry parameter source.
+
+Avoid passing semantically identical geometry values through multiple unrelated constants.
+
+Where practical, establish a clearly documented geometry configuration object/parameter set used to derive:
+
+- host reference geometry;
+- CUDA launch values;
+- validation configuration;
+- sediment experiment configuration.
+
+Do not undertake an unnecessary architectural rewrite, but reduce opportunities for geometry drift.
+
+======================================================================
+FULL GEOMETRY VALIDATION GATE
+======================================================================
+
+The V24.51 geometry gate should include, at minimum:
+
+- package/static geometry checks;
+- geometry manifest consistency;
+- deterministic complete-apparatus topology tests;
+- previous connected-solid tests;
+- previous boundary/microsurface tests;
+- memory-layout tests;
+- scalar-input-parity tests;
+- large random spatial-region classification;
+- 500,000-state or stronger one-step CUDA/reference comparison;
+- particle accessibility test;
+- V24.50 million-ray failure-state regression;
+- historical 129-ray regression;
+- long-path local replay closure set;
+- NaN/Inf checks;
+- invalid region/surface checks.
+
+Once this comprehensive geometry gate passes:
+
+    STOP AUDITING GEOMETRY
+
+and proceed to production testing.
+
+Do not add another geometry audit stage.
+
+======================================================================
+EXACT 1,000,000-RAY PRODUCTION QUALIFICATION
+======================================================================
+
+After the comprehensive geometry gate passes, run:
+
+    EXACTLY 1,000,000 production rays
+
+using the production configuration.
+
+Do not reduce the count.
+
+Record at minimum:
+
+- total rays;
+- completed rays;
+- detector hits;
+- termination classifications;
+- water failures;
+- acrylic failures;
+- headspace failures if applicable;
+- microsurface failures;
+- watchdogs;
+- emergency caps;
+- NaN;
+- Inf;
+- invalid regions;
+- invalid surfaces;
+- weights;
+- energy/probability sanity metrics;
+- failure-state examples.
+
+The previous:
+
+    ACRYLIC_NO_INTERSECTION
+    ACRYLIC_ANNULUS_NO_INTERSECTION
+
+population must be explicitly compared against V24.50.
+
+======================================================================
+FIVE-CASE CROSS-CASE INTEGRITY MATRIX
+======================================================================
+
+Retain and run the full existing five-case cross-case integrity matrix after million-ray production qualification if the normal qualification chain permits it.
+
+Do not reduce the five cases.
+
+Report them individually rather than merely reporting an aggregate PASS.
+
+======================================================================
+VERY IMPORTANT — RUN THE SEDIMENT TEST CASES
+======================================================================
+
+I have lost sight of what CLARITAS currently produces for its sediment experiments.
+
+V24.51 must therefore ACTUALLY RUN THE SEDIMENT TEST CASES on a compatible CUDA system.
+
+Do not merely say that the sediment campaign is authorized.
+
+Do not merely produce an authorization Boolean.
+
+I want the actual sediment simulations executed and their results reported.
+
+Discover ALL sediment validation/test/campaign cases currently packaged with CLARITAS.
+
+Create an inventory before running them.
+
+For each sediment case report:
+
+- case ID/name;
+- purpose;
+- configuration file;
+- PSD/material definition;
+- particle population/geometry;
+- sediment concentration or relevant loading;
+- vortex/flow configuration;
+- source configuration;
+- detector configuration;
+- ray count;
+- random seed(s);
+- GPU execution status;
+- elapsed time;
+- completion status;
+- detector outputs;
+- key optical observables;
+- transport/failure counts;
+- watchdogs;
+- emergency caps;
+- NaN/Inf;
+- invalid geometry counts;
+- output files generated.
+
+Do not collapse everything into a single PASS/FAIL.
+
+======================================================================
+SEDIMENT DIAGNOSTIC EXECUTION VS PRODUCTION AUTHORIZATION
+======================================================================
+
+This distinction is important.
+
+I want the sediment cases to be RUN in V24.51 so I can inspect CLARITAS output even if an earlier production-authorization gate fails.
+
+Therefore implement TWO separate concepts:
+
+1. SEDIMENT DIAGNOSTIC EXECUTION
+
+   The defined sediment test cases may be executed for engineering/
+   diagnostic purposes once the executable is sufficiently functional
+   to run them.
+
+2. SEDIMENT PRODUCTION AUTHORIZATION
+
+   This must remain fail-closed and may become true ONLY after all
+   required production qualification gates pass.
+
+In other words:
+
+    sediment_diagnostic_campaign_run = true
+
+does NOT imply:
+
+    sediment_campaign_authorized = true
+
+If the comprehensive geometry gate itself is fundamentally broken such that running sediment would produce meaningless or unsafe numerical output, fail clearly rather than manufacturing results.
+
+But do not suppress sediment execution merely because, for example, the five-case production authorization matrix has not yet passed.
+
+The objective is to SEE THE TEST-CASE OUTPUT.
+
+Clearly watermark/report diagnostic sediment results as:
+
+    DIAGNOSTIC / NOT PRODUCTION-AUTHORIZED
+
+when appropriate.
+
+======================================================================
+SEDIMENT TEST-CASE REPORTING
+======================================================================
+
+Produce a useful consolidated sediment report.
+
+At minimum generate machine-readable:
+
+    sediment_case_inventory.csv
+    sediment_case_results.csv
+    sediment_case_results.json
+
+and a human-readable:
+
+    V24_51_SEDIMENT_TEST_REPORT.md
+
+For each case include relevant detector-channel outputs.
+
+If CLARITAS generates wavelength-dependent or detector-dependent results, preserve those outputs.
+
+If there are expected/reference values already present in the project:
+
+- report them;
+- compare against them;
+- state provenance.
+
+Do not invent expected values.
+
+======================================================================
+SEDIMENT PLOTS
+======================================================================
+
+If the existing CLARITAS workflow produces plots, preserve them.
+
+Additionally generate useful diagnostic plots from the sediment campaign where supported by the actual outputs.
+
+For example, where applicable:
+
+- detector response by case;
+- detector response ratios;
+- detected fraction;
+- scattering/transmission response;
+- result versus sediment concentration;
+- result versus PSD;
+- case-to-case comparison;
+- failure/termination breakdown.
+
+Do not fabricate plots for quantities the simulation does not compute.
+
+Include plot data as CSV where practical.
+
+======================================================================
+SEDIMENT REPORTING AUDIT
+======================================================================
+
+Audit how CLARITAS currently reports sediment cases.
+
+Determine:
+
+- what files are written;
+- what quantities are reported;
+- what metadata is missing;
+- whether runs can be reproduced;
+- whether detector outputs are unambiguous;
+- whether case identity is preserved;
+- whether ray count and seed are recorded;
+- whether failures are visible;
+- whether results from multiple cases can be compared safely.
+
+Correct obvious reporting deficiencies in THIS release.
+
+Do not redesign the whole application unnecessarily.
+
+The goal is that after running V24.51 I can immediately understand what every sediment test did and what it produced.
+
+======================================================================
+H170
+======================================================================
+
+Inspect the existing H170 sediment workflow.
+
+If H170 is one of the packaged sediment test/campaign cases, include it in the diagnostic execution and clearly identify it.
+
+If H170 is a production campaign distinct from smaller sediment validation cases:
+
+- retain the production authorization gate;
+- also provide whatever diagnostic/smoke execution is already scientifically meaningful without falsely labeling it production-qualified.
+
+Do not silently skip H170-related reporting.
+
+======================================================================
+SEDIMENT CASE COMPLETENESS
+======================================================================
+
+Do not assume only one sediment configuration exists.
+
+Search the package for all:
+
+- sediment configs;
+- PSD cases;
+- material cases;
+- H170 configs;
+- campaign scripts;
+- validation scripts;
+- example sediment experiments.
+
+Produce an inventory showing:
+
+    discovered
+    executable
+    executed
+    skipped
+    reason
+
+This will make clear whether any existing sediment case has been forgotten.
+
+======================================================================
+FAILURE DIAGNOSTICS
+======================================================================
+
+Any geometry failure encountered during:
+
+- comprehensive geometry validation;
+- million-ray qualification;
+- integrity matrix;
+- sediment cases
+
+must produce useful machine-readable diagnostics.
+
+Include:
+
+- region;
+- state position;
+- direction;
+- relevant geometry parameters;
+- expected candidate surfaces;
+- failure class;
+- case ID;
+- ray/index where practical.
+
+Do not require another release simply to discover what class of failure occurred.
+
+======================================================================
+STOPPING / COMPLETION RULE
+======================================================================
+
+V24.51 is expected to solve ALL geometry inconsistencies that can be identified from the complete static and dynamic geometry analysis in this iteration.
+
+Do NOT stop development after the first corrected defect.
+
+Continue the audit through the entire region/surface model before packaging.
+
+The release is ready when:
+
+1. complete apparatus geometry has been reconstructed and documented;
+2. all discovered production geometry inconsistencies have been corrected;
+3. comprehensive geometry validation has been implemented;
+4. host-supported tests pass;
+5. GPU-supported tests have been run if CUDA is available;
+6. the million-ray test has been run if prerequisites pass;
+7. the five-case matrix has been run if its prerequisites pass;
+8. sediment diagnostic cases have actually been run on CUDA when possible;
+9. sediment results are clearly reported;
+10. the final package is reproducible and fail-closed for production authorization.
+
+Do not defer known geometry fixes to V24.52 merely to keep V24.51 small.
+
+======================================================================
+NO EMPIRICAL PHYSICS TUNING
+======================================================================
+
+Preserve CLARITAS as a process-based physical simulation.
+
+DO NOT:
+
+- introduce empirical material-specific scattering multipliers;
+- introduce PSD-specific boost factors;
+- tune parameters to make sediment plots look plausible;
+- fit detector gains to expected sediment outcomes;
+- add arbitrary transmission/scattering corrections;
+- alter physical results simply to match prior data.
+
+Any later comparison with experiment must remain physically interpretable.
+
+======================================================================
+PROCESS DECISION / STATUS REPORTING
+======================================================================
+
+Maintain the corrected fail-closed reporting architecture.
+
+Keep separate statuses for at least:
+
+    geometry_validation
+    production_million_ray_qualification
+    integrity_matrix
+    sediment_diagnostic_campaign
+    production_transport_validated
+    sediment_campaign_authorized
+
+A sediment diagnostic run must never silently imply production authorization.
+
+All summary JSON/CSV/decision files must agree.
+
+Refresh summaries before every exit.
+
+======================================================================
+RELEASE VERSIONING
+======================================================================
+
+Make the release consistently:
+
+    V24.51.0
+
+Update all appropriate:
+
+- package version;
+- source version;
+- directory names;
+- validation scripts;
+- campaign runner;
+- reports;
+- process decision;
+- geometry decision;
+- sediment reports;
+- qualification receipt;
+- manifests;
+- SHA256SUMS;
+- README;
+- release notes.
+
+Historical V24.50 references may remain only where they explicitly refer to the previous release/evidence.
+
+======================================================================
+ENGINEERING DOCUMENTATION
+======================================================================
+
+Create a substantial but readable engineering document, for example:
+
+    V24_51_COMPLETE_GEOMETRY_ENGINEERING_NOTE.md
+
+It should explain:
+
+1. why repeated local geometry releases occurred;
+2. V24.51's whole-geometry methodology;
+3. canonical apparatus dimensions;
+4. provenance of those dimensions;
+5. complete region model;
+6. complete surface/interface model;
+7. free-surface/headspace relationship;
+8. acrylic sidewall physical extent;
+9. bottom topology;
+10. top/rim topology;
+11. detector/source geometry;
+12. sediment-particle geometry;
+13. all production geometry defects found;
+14. all production corrections made;
+15. all validation performed;
+16. million-ray result;
+17. five-case matrix result;
+18. sediment cases discovered;
+19. sediment cases executed;
+20. sediment results/reporting;
+21. anything still genuinely unknown.
+
+Do not conceal unresolved assumptions.
+
+======================================================================
+MACHINE-READABLE TOP-LEVEL SUMMARY
+======================================================================
+
+The top-level qualification summary should include at least:
+
+    package_validation
+    host_validation
+    cuda_available
+    cuda_abi_validation
+
+    geometry_manifest_validation
+    full_region_topology_validation
+    surface_interface_validation
+    random_region_classification_validation
+    boundary_gpu_validation
+    deterministic_geometry_validation
+    memory_layout_validation
+    scalar_input_parity_validation
+    one_step_500k_validation
+    particle_accessibility_validation
+    v24_50_failure_regression
+    historical_long_path_validation
+    residual_local_replay_validation
+    complete_geometry_gpu_validation
+
+    million_ray_qualification
+    five_case_integrity_matrix
+
+    sediment_cases_discovered
+    sediment_cases_executed
+    sediment_diagnostic_campaign_status
+
+    production_cuda_physics_changed
+    production_transport_validated
+    sediment_campaign_authorized
+
+Use PASS / FAIL / NOT RUN where appropriate.
+
+Use counts for discovered/executed sediment cases.
+
+======================================================================
+TESTING IN YOUR ENVIRONMENT
+======================================================================
+
+Run everything the environment genuinely supports.
+
+At minimum run:
+
+- syntax/import checks;
+- complete package preflight;
+- complete host verifier;
+- geometry-manifest verification;
+- topology consistency checks;
+- static CUDA/Python geometry audit;
+- CUDA/Python ABI audit;
+- deterministic host geometry tests;
+- previous validator regressions;
+- case-1650 regression;
+- V24.50 failure-state host regression where possible;
+- manifest verification;
+- SHA256SUMS verification;
+- package integrity.
+
+If CUDA is available:
+
+RUN THE COMPLETE GPU SEQUENCE INCLUDING THE SEDIMENT TEST CASES.
+
+If CUDA is unavailable in your build environment:
+
+- do NOT fabricate GPU results;
+- clearly mark those tests NOT RUN;
+- nevertheless package the complete executable GPU validation and sediment workflow;
+- ensure the canonical user command runs the whole sequence automatically on my CUDA machine.
+
+======================================================================
+CANONICAL USER EXECUTION
+======================================================================
+
+Create a single top-level runner that performs the intended sequence automatically.
+
+I should not need to manually work out which scripts to run.
+
+The run should conceptually be:
+
+1. preflight
+2. host/static validation
+3. comprehensive GPU geometry qualification
+4. exact 1,000,000-ray production qualification
+5. five-case integrity matrix where qualified
+6. sediment diagnostic test campaign
+7. sediment reporting
+8. final qualification/authorization decision
+
+Diagnostic sediment execution should be clearly separated from production authorization as described above.
+
+======================================================================
+PACKAGING REQUIREMENTS
+======================================================================
+
+RETURN ONE COMPLETE FINAL ARCHIVE:
+
+    CLARITAS_V24_51.zip
+
+containing exactly one top-level folder:
+
+    CLARITAS_V24_51/
+
+This requirement is mandatory.
+
+Do not give me merely:
+
+- changed files;
+- patches;
+- diffs;
+- code snippets;
+- instructions to edit V24.50.
+
+Deliver the complete release.
+
+Do not include:
+
+- __pycache__
+- .pyc
+- CuPy caches
+- Jitify caches
+- editor files
+- temporary build products
+- nested old release ZIPs
+- accidental huge transient traces
+
+Include all scripts/configuration/documentation required to reproduce the release and sediment campaign.
+
+Generate:
+
+    SHA256SUMS.txt
+
+for all release-critical files.
+
+Verify every hash.
+
+Then:
+
+1. build the FINAL ZIP;
+2. test ZIP compressed-data integrity;
+3. clean-extract the FINAL ZIP into a fresh directory;
+4. run package preflight FROM THAT EXTRACTED COPY;
+5. run the complete host verifier FROM THAT EXTRACTED COPY;
+6. verify SHA256SUMS FROM THAT EXTRACTED COPY;
+7. run supported runtime validation from the extracted copy.
+
+Do not validate one tree and package another.
+
+Report the final ZIP SHA-256.
+
+======================================================================
+USER RUN COMMANDS
+======================================================================
+
+Provide the exact command sequence for my normal CUDA environment.
+
+Assume approximately:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_51"
+    conda activate claritas
+
+Clear stale output/cache:
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+Then give the ACTUAL script names you create.
+
+Prefer a simple sequence analogous to:
+
+    python preflight_v24_51_package.py && \
+    python verify_v24_51_complete_geometry.py && \
+    python run_v24_51_campaign.py
+
+The top-level campaign script should run the sediment diagnostic cases itself.
+
+I should NOT need a separate undocumented sediment command.
+
+======================================================================
+FINAL RESPONSE
+======================================================================
+
+When finished, report:
+
+1. concise engineering summary;
+
+2. complete list of production geometry defects found;
+
+3. complete list of production geometry corrections made;
+
+4. whether production CUDA changed and why;
+
+5. canonical geometry dimensions and provenance;
+
+6. region/topology summary;
+
+7. surface/interface summary;
+
+8. V24.50 7,734-failure regression result;
+
+9. comprehensive geometry validation result;
+
+10. 500,000-state one-step result;
+
+11. particle accessibility result;
+
+12. exact 1,000,000-ray qualification result;
+
+13. five-case integrity matrix result;
+
+14. COMPLETE INVENTORY OF SEDIMENT TEST CASES DISCOVERED;
+
+15. WHICH SEDIMENT CASES ACTUALLY RAN;
+
+16. per-case sediment result summary;
+
+17. links/locations of sediment CSV/JSON/reports/plots;
+
+18. status of:
+        sediment_diagnostic_campaign_run
+        production_transport_validated
+        sediment_campaign_authorized
+
+19. final CUDA/Python ABI audit;
+
+20. anything NOT RUN and why;
+
+21. final ZIP structure;
+
+22. final ZIP SHA-256;
+
+23. exact commands I should run;
+
+24. A DOWNLOADABLE LINK TO:
+
+        CLARITAS_V24_51.zip
+
+======================================================================
+MOST IMPORTANT REQUIREMENTS
+======================================================================
+
+DO THE WORK AND RETURN THE COMPLETE ZIP.
+
+DO NOT STOP AFTER FIXING THE FIRST GEOMETRY ERROR.
+
+EXAMINE THE COMPLETE APPARATUS GEOMETRY IN ONE ITERATION.
+
+DO NOT DEFER KNOWN GEOMETRY PROBLEMS TO SUCCESSIVE RELEASES.
+
+DO NOT INTRODUCE EMPIRICAL SCATTERING/PSD CORRECTION FACTORS.
+
+RUN THE SEDIMENT TEST CASES AND SHOW WHAT CLARITAS ACTUALLY REPORTS.
+
+KEEP DIAGNOSTIC SEDIMENT EXECUTION SEPARATE FROM PRODUCTION AUTHORIZATION.
+
+DO NOT CLAIM TESTS YOU DID NOT RUN.
+
+DO NOT FABRICATE GPU RESULTS.
+
+DO NOT LEAVE ME WITH PATCHES OR MANUAL EDITS.
+
+RETURN:
+
+    CLARITAS_V24_51.zip

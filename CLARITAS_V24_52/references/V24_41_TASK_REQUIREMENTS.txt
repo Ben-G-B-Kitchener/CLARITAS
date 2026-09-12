@@ -1,0 +1,1973 @@
+You are to produce the next complete CLARITAS release:
+
+    V24.41.0
+
+THIS IS AN IMPLEMENTATION TASK, NOT AN ADVISORY, REVIEW, OR PATCH-SUGGESTION TASK.
+
+You must inspect the supplied V24.40 source package and its REAL GPU validation results, implement the required numerical corrections, run all host-side validation available to you, construct the complete release package, and RETURN A DOWNLOADABLE ZIP FILE.
+
+A ZIP FILE IS COMPULSORY.
+
+The task is NOT complete until the final response contains:
+
+    1. a downloadable CLARITAS_V24_41.zip
+    2. the final ZIP SHA-256
+    3. exact copy-paste-ready Git Bash run commands
+
+Do not finish with:
+
+    code snippets only
+    a patch
+    diffs
+    instructions for me to modify files myself
+    a source directory without a ZIP
+    a statement that packaging remains to be done
+
+If CUDA hardware is unavailable in your environment, that does NOT excuse the ZIP requirement.
+
+In that case:
+
+    implement V24.41 fully
+    run every host-side test available
+    leave GPU authorization false
+    leave sediment authorization false
+    package the complete GPU-validation candidate
+    STILL RETURN CLARITAS_V24_41.zip
+    STILL RETURN THE RUN COMMANDS
+
+Do not ask me to make routine implementation decisions. Inspect the supplied implementation, verify the numerical diagnosis against the actual source and measured V24.40 GPU results, and make the scientifically defensible correction yourself.
+
+
+======================================================================
+1. AUTHORITATIVE INPUTS
+======================================================================
+
+PRIMARY PRODUCTION STARTING POINT:
+
+    CLARITAS_V24_40.zip
+
+V24.41 MUST be derived directly from V24.40.
+
+Do NOT rebuild the production release from V24.39, V24.38, V24.37, or earlier.
+
+AUTHORITATIVE REAL GPU RESULTS:
+
+    the complete V24.40 results ZIP supplied with this task
+
+Treat those results as the authoritative measured behaviour of V24.40.
+
+Also use, where supplied and useful:
+
+    V24.39 source/package
+    V24.39 GPU results
+    V24.38 source/package/results
+    V24.37 source/package/results
+    V24.36.12 regression reference
+    release notes / audit material
+
+Older releases are historical regression/frozen-state references.
+
+V24.40 is the executable production baseline.
+
+
+======================================================================
+2. SCIENTIFIC STATUS AFTER V24.40
+======================================================================
+
+Do NOT redesign the physical rough-boundary model.
+
+The REAL V24.40 GPU results provide strong evidence that the underlying physical model is now correct enough with respect to reciprocity.
+
+The retained production concept is:
+
+    Smith-Beckmann dielectric microsurface
+    multiple-scattering random walk
+
+with:
+
+    signed/full-incidence VNDF treatment
+    physical multiple scattering
+    dielectric reflection and refraction
+    explicit inside/outside state
+    Smith height/free-path transport
+    physical escape
+    no support-resampling
+    no geometric fallback
+
+V24.40 COMPLETE-KERNEL RECIPROCITY PASSED.
+
+Approximate measured aggregate results:
+
+    Kaolin:
+        ~0.296% relative residual
+
+    Loess:
+        ~0.615% relative residual
+
+All:
+
+    28 kaolin Qsca>=1 bins
+    38 loess Qsca>=1 bins
+
+passed.
+
+Total:
+
+    66 / 66 compulsory bins passed.
+
+V24.40 CROSS-INTERFACE RECIPROCITY ALSO PASSED.
+
+Representative measured aggregate residuals included approximately:
+
+    TIR grazing:
+        Kaolin ~0.259%
+        Loess  ~0.275%
+
+All required cross-interface cases passed.
+
+Other successful V24.40 gates include:
+
+    GPU acquisition
+    deterministic Fresnel/Snell optics
+    smooth-surface limit
+    full-sphere VNDF stress test
+    watchdog zero hits
+    V24.36 known-bad rejection
+    V24.37 known-bad rejection
+    V24.38 known-bad rejection
+    V24.39 known-bad rejection
+    legacy identity
+
+Therefore:
+
+    DO NOT CHANGE THE STOCHASTIC PHYSICAL MODEL WITHOUT
+    COMPELLING NEW EVIDENCE.
+
+V24.41 is primarily a NUMERICAL STABILITY release.
+
+
+======================================================================
+3. DOMINANT V24.40 FAILURE
+======================================================================
+
+V24.40 remained correctly unauthorized because numerical failures remained.
+
+The new V24.40 failure-subcode diagnostics isolated the dominant production failure very clearly.
+
+In the complete-kernel numerical diagnostics, approximately:
+
+    122915
+
+numerical failures were recorded.
+
+The failure classification was effectively:
+
+    HEIGHT_CDF_INVALID:
+        122915
+
+while:
+
+    VNDF_PROJECTED_AREA_INVALID       0
+    VNDF_CDF_INVALID                  0
+    VNDF_INVERSE_CDF_INVALID          0
+    VNDF_VISIBILITY_FAILURE           0 in that production population
+    other numerical subcodes          0
+    watchdogs                         0
+
+The internal/external split was approximately:
+
+    internal HEIGHT_CDF_INVALID:
+        45025
+
+    external HEIGHT_CDF_INVALID:
+        77890
+
+The separate probability/conservation population showed approximately:
+
+    990000 samples
+
+    ~34187 numerical failures
+
+    ~3.45% numerical failure rate
+
+    0 watchdogs
+
+    0 absorption
+
+The equal-index test showed approximately:
+
+    30000 samples
+    29720 successful
+    280 numerical failures
+    0 watchdogs
+
+and all 280 failures were:
+
+    HEIGHT_CDF_INVALID
+
+This is essentially unchanged from V24.39's:
+
+    281 / 30000
+
+equal-index failure.
+
+Therefore:
+
+    THE PRIMARY V24.41 TARGET IS THE SMITH HEIGHT/FREE-PATH
+    NUMERICAL CALCULATION.
+
+Do not continue blaming the bulk production failure on the VNDF tail.
+
+V24.40's diagnostics have now shown otherwise.
+
+
+======================================================================
+4. PRIMARY FUNCTION TO AUDIT: smith_beckmann_lambda
+======================================================================
+
+Inspect the actual V24.40 implementation.
+
+Look for a Smith Beckmann Lambda calculation equivalent to:
+
+    float lam =
+        0.5f * (erff(a) - 1.0f)
+        +
+        (INV_2_SQRT_PI / a) * expf(-a*a);
+
+or mathematically equivalent code.
+
+For positive a, the true Beckmann Smith Lambda should be non-negative.
+
+However this expression is numerically dangerous for moderately large positive a because it subtracts two very small, nearly equal quantities.
+
+The terms:
+
+    0.5 * (erf(a) - 1)
+
+and:
+
+    exp(-a^2) / (2 sqrt(pi) a)
+
+can be individually much larger than their final difference.
+
+In float32 the result can therefore become:
+
+    slightly negative
+    zero when it should be positive
+    badly inaccurate
+
+even for physically ordinary directions.
+
+If V24.40 then performs logic equivalent to:
+
+    if (!isfinite(lam) || lam < 0)
+        numerical_failure;
+
+then a floating-point cancellation error becomes:
+
+    HEIGHT_CDF_INVALID
+
+even though the physical state is valid.
+
+YOU MUST VERIFY THIS AGAINST THE ACTUAL SOURCE.
+
+Do not blindly replace code based only on this prompt.
+
+Confirm the coordinate convention, alpha scaling, definition of a, and sign conventions.
+
+
+======================================================================
+5. IMPLEMENT A NUMERICALLY STABLE SMITH LAMBDA
+======================================================================
+
+Implement a stable mathematically equivalent Beckmann Smith Lambda.
+
+Do NOT:
+
+    clamp a negative float result to zero
+    hide the error
+    fit a correction
+    introduce an empirical threshold
+
+Use a mathematically stable formulation.
+
+One candidate identity to VERIFY is based on a complementary Gaussian tail.
+
+For positive a, formulations involving:
+
+    erfc(a)
+    scaled erfc / erfcx(a)
+    asymptotic tail evaluation
+
+can avoid direct subtraction of nearly equal terms.
+
+A useful algebraic form to investigate is of the type:
+
+                       exp(-a^2)
+    Lambda(a) = --------------------------- * B(a)
+                 2 sqrt(pi) a
+
+where B(a) is evaluated in a numerically stable complementary-tail form.
+
+A candidate relationship discussed during diagnosis was:
+
+    B(a) = 1 - a sqrt(pi) erfcx(a)
+
+but YOU MUST VERIFY the exact algebra against the authoritative Beckmann/Smith definition used by CLARITAS before implementing it.
+
+If CUDA's available math library does not provide the required scaled complementary error function reliably, implement an equivalent stable helper using:
+
+    erfc
+    asymptotic expansions
+    piecewise evaluation
+    double-precision intermediates
+
+as mathematically appropriate.
+
+Do not invent an empirical approximation.
+
+Document the selected formula and numerical domains.
+
+
+======================================================================
+6. SIGNED LAMBDA RELATION
+======================================================================
+
+The dielectric microsurface random walk uses signed/full-incidence directions.
+
+Investigate and verify the signed Smith Lambda identity used by the published Heitz formulation.
+
+A useful candidate relationship is:
+
+    Lambda(-a) = -1 - Lambda(a)
+
+or its equivalent under the actual CLARITAS direction convention.
+
+Do NOT assume this blindly.
+
+Verify:
+
+    exact Smith convention
+    propagation-vector sign
+    macrosurface frame orientation
+    stretched-coordinate definition
+    upper/lower side convention
+
+Then use the exact mathematical symmetry if appropriate.
+
+The goal is to avoid independently evaluating another catastrophically cancelling backside expression when the stable positive-side quantity can be transformed analytically.
+
+
+======================================================================
+7. PRECISION POLICY FOR LAMBDA
+======================================================================
+
+Use sufficient precision for the numerically delicate Lambda evaluation.
+
+It is acceptable, and likely desirable, to use:
+
+    double precision
+
+for:
+
+    a
+    exp(-a*a)
+    erfc / erfcx-equivalent evaluation
+    Lambda
+    logarithmic CDF calculations
+
+while retaining float for general transport vectors if that remains safe.
+
+Do not convert the entire CUDA simulation to double unless necessary.
+
+Use selective higher precision where mathematical conditioning requires it.
+
+
+======================================================================
+8. SECOND PRIMARY TARGET: smith_sample_height
+======================================================================
+
+Inspect the complete V24.40 Smith height/free-path sampler.
+
+The current mathematical structure may contain operations equivalent to:
+
+    G1 = powf(C1, lambda);
+
+    if (U > 1 - G1)
+        ESCAPE;
+
+    denom = powf(1 - U, 1 / lambda);
+
+    Cnext = C0 / denom;
+
+This is mathematically valid in exact arithmetic but can be badly conditioned.
+
+Problems include:
+
+    G1 ~= 1
+
+so:
+
+    1 - G1
+
+loses precision.
+
+Also:
+
+    lambda -> 0+
+
+causes:
+
+    1 / lambda
+
+to become very large.
+
+The escape test and Cnext calculation can then be evaluated through separately rounded pow() operations that disagree near the transition boundary.
+
+That can result in:
+
+    Cnext > 1
+
+or another apparently invalid CDF state even though the exact physical expression is valid.
+
+V24.40 then correctly labels this as a numerical failure.
+
+V24.41 must prevent the numerical instability rather than hiding it.
+
+
+======================================================================
+9. IMPLEMENT HEIGHT SAMPLING IN A STABLE LOG DOMAIN
+======================================================================
+
+Reformulate the same Smith height probability law using stable logarithmic arithmetic.
+
+A candidate structure to VERIFY is:
+
+    logC0 = log(C0)
+
+    logG1 = lambda * logC0
+
+and then compute:
+
+    intersection_probability
+        = 1 - exp(logG1)
+
+using:
+
+    -expm1(logG1)
+
+rather than:
+
+    1 - exp(logG1)
+
+This avoids catastrophic cancellation when G1 is close to one.
+
+For a valid physical intersection, investigate evaluating the next CDF as:
+
+    logCnext =
+        logC0
+        - log1p(-U) / lambda
+
+followed by:
+
+    Cnext = exp(logCnext)
+
+instead of:
+
+    C0 / pow(1-U, 1/lambda)
+
+Again:
+
+    VERIFY the sign and exact algebra against the actual Smith
+    height equation before implementation.
+
+Use:
+
+    log
+    log1p
+    expm1
+    exp
+
+in double precision where appropriate.
+
+The implementation must remain mathematically equivalent to the published Smith height/free-path process.
+
+
+======================================================================
+10. LAMBDA -> 0 LIMIT
+======================================================================
+
+Explicitly handle the numerically delicate:
+
+    lambda -> 0
+
+limit.
+
+Do NOT solve this by:
+
+    setting lambda to an arbitrary epsilon
+    clamping lambda
+    forcing escape
+    forcing intersection
+
+Derive or verify the correct limiting behaviour.
+
+For very small positive lambda:
+
+    G1 = C^lambda
+
+approaches:
+
+    1
+
+and the physical intersection probability approaches the corresponding first-order limit.
+
+Use:
+
+    log-domain mathematics
+    series/asymptotic evaluation
+
+where necessary.
+
+The numerical result must converge to the exact physical limit.
+
+
+======================================================================
+11. HEIGHT CDF RANGE HANDLING
+======================================================================
+
+Do NOT paper over a bad result by simply doing:
+
+    Cnext = clamp(Cnext, 0, 1)
+
+unless the only discrepancy is a formally bounded final-rounding error and this is explicitly justified mathematically.
+
+Prefer evaluating the expression so that the invariant is preserved naturally.
+
+If final floating-point conversion produces a tiny representational overshoot, any correction must be:
+
+    analytically justified
+    documented
+    below a strict machine-precision-scale tolerance
+    tested independently
+
+It must NOT become an arbitrary physical correction.
+
+
+======================================================================
+12. SPLIT HEIGHT FAILURE SUBCODES
+======================================================================
+
+V24.40's broad:
+
+    HEIGHT_CDF_INVALID
+
+is no longer sufficiently diagnostic.
+
+V24.41 must subdivide height/free-path failures.
+
+At minimum implement practical CUDA subcodes corresponding to:
+
+    HEIGHT_LAMBDA_INVALID
+
+    HEIGHT_C0_INVALID
+
+    HEIGHT_LOG_C0_INVALID
+
+    HEIGHT_G1_INVALID
+
+    HEIGHT_ESCAPE_PROB_INVALID
+
+    HEIGHT_RANDOM_INVALID
+
+    HEIGHT_LOG_CNEXT_INVALID
+
+    HEIGHT_CNEXT_RANGE_INVALID
+
+    HEIGHT_INVERSE_CDF_INVALID
+
+    HEIGHT_OUTPUT_INVALID
+
+    HEIGHT_FREE_PATH_INVALID
+
+Retain other existing numerical codes.
+
+For every compulsory GPU validation population, report counts for each.
+
+Authorization requires:
+
+    all numerical failure subcode counts = 0
+
+
+======================================================================
+13. RECORD FAILURE STATE VARIABLES
+======================================================================
+
+For diagnostic validation only, capture useful state ranges associated with any height failure.
+
+At minimum capture aggregate:
+
+    minimum / maximum direction cosine
+    minimum / maximum stretched direction parameter
+    minimum / maximum Lambda
+    minimum / maximum C0
+    minimum / maximum U
+    minimum / maximum logC0
+    minimum / maximum candidate Cnext
+    microsurface scatter order
+
+Do not dump enormous per-photon traces by default.
+
+Produce compact CSV diagnostics sufficient to identify the numerical domain of any failure.
+
+
+======================================================================
+14. RANDOMIZED HEIGHT-SAMPLER STRESS TEST
+======================================================================
+
+The V24.40 hand-selected height tests all passed despite real transport generating tens of thousands of HEIGHT_CDF_INVALID events.
+
+That validation gap must be closed.
+
+Add a large randomized independent height-sampler stress test.
+
+Cover the relevant combinations of:
+
+    direction cosine
+    stretched direction
+    upper/lower side
+    current height
+    CDF C0
+    random U
+    Lambda magnitude
+    near-horizontal states
+    near-vertical states
+    escape/intersection boundary states
+    roughness-tail states
+
+Compare the production CUDA result against an independent high-precision reference where practical.
+
+At minimum report by angular/state bin:
+
+    samples
+    intersections
+    escapes
+    numerical failures
+    maximum CDF discrepancy
+    maximum probability discrepancy
+
+The test must exercise the actual production height/free-path device function or shared identical device code.
+
+
+======================================================================
+15. TARGET THE EQUAL-INDEX FAILURE DIRECTLY
+======================================================================
+
+Retain the equal-index release gate.
+
+Use:
+
+    n_top = n_bottom
+    k = 0
+
+Expected physical behaviour:
+
+    Fresnel R = 0
+    propagation direction unchanged
+    no absorption
+    eventual physical microsurface escape
+    multiple microsurface encounters allowed
+    zero numerical failures
+    zero watchdogs
+
+V24.40 measured approximately:
+
+    280 / 30000
+
+numerical failures, all classified as:
+
+    HEIGHT_CDF_INVALID
+
+V24.41 must require:
+
+    numerical failures = 0
+
+    watchdogs = 0
+
+    survival = 100%
+
+    direction preservation within numerical tolerance
+
+Retain V24.40's result as an isolated known-bad regression.
+
+
+======================================================================
+16. PROBABILITY / SURVIVAL POPULATION
+======================================================================
+
+Retain the large production-path probability/survival test.
+
+The V24.40 result was approximately:
+
+    990000 samples
+
+    ~34187 numerical failures
+
+    0 watchdogs
+
+    0 absorption
+
+V24.41 authorization requires:
+
+    numerical failures = 0
+
+    watchdog failures = 0
+
+    no physical absorption for k=0
+
+    no missing photons
+
+Do NOT reduce the test size merely to make zero failures easier to achieve.
+
+
+======================================================================
+17. ULTRA-GRAZING VNDF ISSUE
+======================================================================
+
+V24.40 separately isolated a much smaller VNDF precision edge case.
+
+The V24.40 targeted signed-VNDF tests passed through approximately:
+
+    wz = -0.99
+
+and explicit angular cases such as:
+
+    150 deg
+    155 deg
+    158 deg
+    160 deg
+    162 deg
+    165 deg
+    170 deg
+    175 deg
+    179 deg
+
+The random full-sphere stress test reportedly passed:
+
+    360000 / 360000
+
+with zero failures.
+
+However the deliberately extreme target:
+
+    wz = -0.9999
+
+approximately:
+
+    raw angle ~179.19 degrees
+
+produced approximately:
+
+    903 / 12000
+
+failures.
+
+These were classified as:
+
+    VNDF_VISIBILITY_FAILURE
+
+The sampled moments remained close to the analytical references.
+
+Therefore the V24.40 full-domain CDF/tail correction should generally be RETAINED.
+
+Do not revert it.
+
+
+======================================================================
+18. FIX ULTRA-GRAZING VNDF RECONSTRUCTION/PRECISION
+======================================================================
+
+Investigate the V24.40 `wz=-0.9999` failure.
+
+The likely issue is that the physically positive visible-normal dot product becomes extremely small, and conversion/reconstruction through float vectors loses the sign through roundoff.
+
+Verify this against actual CUDA code and measured outputs.
+
+Potential correction areas include:
+
+    double-precision local slope reconstruction
+    double-precision normal normalization
+    double-precision basis transformation
+    double-precision visibility dot product
+    delaying float conversion until after the local Fresnel event
+
+Do NOT fix it by:
+
+    forcing the visibility dot positive
+    clamping it to epsilon
+    substituting geometric normal
+    rejecting and resampling
+    artificially changing the sampled normal
+
+The sampled physical distribution must remain unchanged.
+
+If a physically valid microfacet cannot be represented safely as a float normal at that extreme angle, retain sufficient precision through the part of the interaction that requires it.
+
+
+======================================================================
+19. RETAIN V24.40 VNDF TAIL MATHEMATICS
+======================================================================
+
+V24.40 removed the V24.39 arbitrary:
+
+    erf_min = -0.9999
+
+style tail truncation.
+
+Do NOT reintroduce it.
+
+Retain the numerically complete complementary-tail formulation unless a verified mathematical error is found.
+
+Retain:
+
+    no arbitrary probability truncation
+    no geometric fallback
+    no numerical-error-as-escape
+    open-interval RNG handling for inverse-CDF input
+    explicit numerical failure reporting
+
+V24.41 should improve representation precision at the extreme grazing limit, not redesign the distribution again.
+
+
+======================================================================
+20. EXPAND ULTRA-GRAZING TEST COVERAGE
+======================================================================
+
+Retain all current signed-VNDF tests and add finer resolution near the lower pole.
+
+Test representative values such as:
+
+    wz = -0.99
+    wz = -0.995
+    wz = -0.999
+    wz = -0.9995
+    wz = -0.9999
+    wz = -0.99999
+
+subject to what is meaningfully representable.
+
+Also test equivalent angular values approaching 180 degrees.
+
+Record:
+
+    valid samples
+    visibility failures
+    minimum positive visibility dot
+    maximum normalization error
+    sample moments
+    reference moments
+
+Do not define an arbitrary exclusion cone near 180 degrees merely to make the test pass.
+
+
+======================================================================
+21. PRESERVE V24.40 FULL-SPHERE VNDF STRESS TEST
+======================================================================
+
+Retain the random full-sphere VNDF stress test.
+
+It must continue to pass.
+
+If the sampling distribution is changed in any way beyond pure numerical equivalence, investigate carefully before accepting it.
+
+The V24.41 ultra-grazing correction must not regress the rest of the full signed domain.
+
+
+======================================================================
+22. PRESERVE THE PHYSICAL MODEL
+======================================================================
+
+Do NOT revert or replace the Smith dielectric microsurface random walk.
+
+Specifically retain:
+
+    physical microsurface multiple scattering
+    signed/full-incidence VNDF
+    Smith height/free-path process
+    dielectric reflection/refraction
+    physical inside/outside transitions
+    physical escape
+
+Do NOT reintroduce:
+
+    V24.37 support rejection/resampling
+    V24.36 facing rejection
+    raw-NDF fallback
+    geometric-normal fallback
+    artificial escape
+    Fresnel branch suppression
+    survival multipliers
+    fitted normalization
+    angular remapping
+    empirical loss
+
+
+======================================================================
+23. PRESERVE ALL FROZEN NON-BOUNDARY PHYSICS
+======================================================================
+
+Outside the explicitly permitted V24.41 numerical corrections, preserve:
+
+    V24.29 exact-Mie event-rate physics
+    Qsca<1 behaviour
+    exact Qsca=1 boundary
+    Mie lookup/data
+    PSDs
+    source geometry
+    apparatus geometry
+    particle geometry
+    detector geometry
+    detector response
+    SFH213 response
+    optical constants
+    water refractive index
+    particle refractive indices
+    k = 0
+    RMS roughness slope = 25 degrees
+    wave model
+    vortex model
+    sediment transport
+    H170 geometry
+    H170 cases
+    event codes
+    source/detector symmetry
+    unrelated CUDA transport physics
+
+The 25-degree RMS slope remains:
+
+    inherited
+    physically motivated
+    independently unvalidated
+
+DO NOT TUNE IT.
+
+No H170 result may be used to design, select, normalize, or accept V24.41.
+
+
+======================================================================
+24. PRODUCTION CALL-GRAPH AUDIT
+======================================================================
+
+Audit all production rough-particle routes.
+
+At minimum inspect the roles/functions equivalent to:
+
+    sphere_fresnel_interaction_3d
+
+    spheroid_fresnel_scatter_direction_only_3d
+
+    smith_microsurface_dielectric_walk
+
+    smith_sample_height
+
+    smith_beckmann_lambda
+
+    beckmann_vndf_normal_signed
+
+    beckmann_sample11_signed
+
+    any ultra-grazing normal reconstruction helper
+
+    wave/incoherent rough-particle paths
+
+Do not fix one path while leaving another on the unstable V24.40 implementation.
+
+All relevant corrected production paths must use one consistent V24.41 numerical formulation.
+
+
+======================================================================
+25. RETAIN LEGACY IDENTITY
+======================================================================
+
+Preserve the frozen legacy implementation independently.
+
+Create/use:
+
+    v24_41_legacy_core.py
+
+where appropriate.
+
+The authoritative frozen legacy core/CUDA hashes must remain byte-identical wherever previous release requirements demand it.
+
+Do not clean up or modernize the legacy source.
+
+
+======================================================================
+26. RETAIN ALL HISTORICAL KNOWN-BAD REGRESSIONS
+======================================================================
+
+V24.41 validation must continue to reject all known historical defects.
+
+Retain:
+
+A. V24.36.12
+
+    historical >70% macro-TIR reciprocity defect.
+
+B. V24.37
+
+    VNDF + macro-support rejection/resampling
+
+    ~19% complete-kernel reciprocity failure
+
+    >48% grazing cross-interface failure.
+
+C. V24.38
+
+    incorrect lower-side/unsigned VNDF random walk
+
+    ~10.93% equal-index failure.
+
+D. V24.39
+
+    signed VNDF but unstable/truncated deep negative-tail implementation
+
+    ~0.94% equal-index numerical failure
+    ~3.45% large-population numerical failure.
+
+E. ADD V24.40 KNOWN-BAD REGRESSION
+
+The isolated V24.40 known-bad numerical regression should demonstrate:
+
+    unstable Smith Lambda / height-CDF arithmetic
+
+and, separately where practical:
+
+    ultra-grazing VNDF float visibility failure.
+
+Use measured V24.40 references where useful:
+
+    equal-index:
+        ~280 / 30000 HEIGHT_CDF_INVALID
+
+    probability population:
+        ~34187 / 990000 numerical failures
+
+    complete numerical diagnostic:
+        HEIGHT_CDF_INVALID dominant
+
+    extreme VNDF wz=-0.9999:
+        ~903 / 12000 VNDF_VISIBILITY_FAILURE
+
+Exact stochastic counts need not match every run, but the known-bad implementation must reliably fail the targeted regressions.
+
+Historical code must remain isolated from production.
+
+
+======================================================================
+27. AUTHORITATIVE COMPLETE-KERNEL RECIPROCITY GATE
+======================================================================
+
+DO NOT weaken this test.
+
+Use the actual V24.41 production rough-boundary kernel.
+
+Test:
+
+    28 kaolin Qsca>=1 bins
+
+    38 loess Qsca>=1 bins
+
+Total:
+
+    66 compulsory bins.
+
+Retain the existing failure criterion:
+
+    relative discrepancy > 1%
+
+AND:
+
+    >= 5 sigma
+
+Do NOT change:
+
+    threshold
+    sample interpretation
+    pass/fail semantics
+
+V24.40 passed all 66 bins.
+
+V24.41 must retain that success.
+
+Generate:
+
+    per-bin forward flux
+    reverse flux
+    residual
+    z significance
+    pass/fail
+    aggregate material results
+    plots
+
+
+======================================================================
+28. CROSS-INTERFACE RECIPROCITY
+======================================================================
+
+Retain all existing cross-interface states for both materials:
+
+    outside ordinary
+    outside near-critical
+    TIR near-critical
+    TIR grazing
+
+V24.40 passed these tests.
+
+V24.41 must not regress them.
+
+In particular do not accept a numerical height fix that damages the already-successful TIR/grazing reciprocity.
+
+
+======================================================================
+29. DETERMINISTIC OPTICS
+======================================================================
+
+Retain all deterministic tests:
+
+    reflection reversibility
+    refraction reversibility
+    Fresnel reciprocity
+    dielectric n^2 relation
+    stable Snell implementation
+    TIR
+    normal incidence
+    grazing incidence
+    native-mu edge cases
+
+These are frozen successful behaviour.
+
+
+======================================================================
+30. SMOOTH-SURFACE LIMIT
+======================================================================
+
+Retain:
+
+    alpha -> 0
+
+validation.
+
+The microsurface process must converge to deterministic geometric-normal Fresnel/Snell behaviour.
+
+Do not regress it.
+
+
+======================================================================
+31. HEIGHT STRESS TEST BECOMES A RELEASE GATE
+======================================================================
+
+The new randomized height-sampler test must be a real release gate.
+
+Require:
+
+    zero invalid Lambda values
+    zero invalid G1 values
+    zero invalid escape probabilities
+    zero invalid Cnext values
+    zero NaN/Inf
+    zero height numerical failures
+
+across the defined large validation population.
+
+Do not merely report it informationally.
+
+
+======================================================================
+32. EQUAL-INDEX REMAINS A RELEASE GATE
+======================================================================
+
+Require:
+
+    100% survival
+    zero numerical failures
+    zero watchdog failures
+    direction preserved within numerical tolerance
+
+Do not weaken this requirement.
+
+
+======================================================================
+33. NUMERICAL FAILURE REQUIREMENT
+======================================================================
+
+Authorization requires:
+
+    numerical_failures = 0
+
+across all compulsory release-validation populations.
+
+Do not:
+
+    average failures away
+    normalize them out
+    call them negligible
+    convert them to escape
+    convert them to absorption
+
+
+======================================================================
+34. WATCHDOG SEMANTICS
+======================================================================
+
+Retain the fail-only high engineering watchdog, normally:
+
+    4096
+
+unless a compelling implementation reason requires another high value.
+
+The historical 65-reflection sink must never return.
+
+Remember:
+
+    watchdog != absorption
+    watchdog != escape
+    watchdog != successful transport
+
+Any watchdog event invalidates the release gate.
+
+Require:
+
+    watchdog_hits = 0
+
+
+======================================================================
+35. VALIDATE THE ACTUAL PRODUCTION CODE
+======================================================================
+
+Do not create a cleaner validation-only height sampler that production does not use.
+
+The authoritative CUDA tests must invoke the same production device functions or shared identical code.
+
+At minimum exercise:
+
+    real sphere boundary path
+
+and where applicable:
+
+    real spheroid path
+    real wave/incoherent rough-particle path
+
+Production and validation implementations must not drift.
+
+
+======================================================================
+36. DECISION REPORTING
+======================================================================
+
+Retain independent factual decision fields.
+
+At minimum include:
+
+    gpu_acquisition_pass
+
+    deterministic_optics_pass
+
+    smith_lambda_pass
+
+    randomized_height_stress_pass
+
+    height_sampler_pass
+
+    signed_vndf_pass
+
+    ultra_grazing_vndf_pass
+
+    full_sphere_vndf_stress_pass
+
+    vndf_distribution_pass
+
+    equal_index_pass
+
+    forced_inside_second_hit_pass
+
+    smooth_limit_pass
+
+    corrected_kernel_reciprocity_pass
+
+    all_qsca_ge_1_bins_pass
+
+    cross_interface_reciprocity_pass
+
+    probability_conservation_pass
+
+    watchdog_zero_hits
+
+    numerical_failures_zero
+
+    legacy_identity_pass
+
+    known_bad_v24_36_rejected
+
+    known_bad_v24_37_rejected
+
+    known_bad_v24_38_rejected
+
+    known_bad_v24_39_rejected
+
+    known_bad_v24_40_rejected
+
+    validated_physics_correction
+
+    sediment_campaign_authorized
+
+A failure of one gate must not falsify another independent factual field.
+
+
+======================================================================
+37. FIX COSMETIC PLOT WARNING IF PRACTICAL
+======================================================================
+
+V24.40 sometimes emitted:
+
+    Data has no positive values, and therefore cannot be log-scaled.
+
+This is not a physics defect.
+
+However, if practical, make the plotter avoid requesting logarithmic scaling when the complete plotted dataset has no positive values.
+
+Do not change physics or result values to suppress the warning.
+
+
+======================================================================
+38. NUMPY COMPATIBILITY
+======================================================================
+
+Retain the V24.40 fix for the removed:
+
+    np.trapz
+
+API.
+
+The user must not require any NumPy monkey patch.
+
+Audit V24.41 runtime/validation code for removed or unguarded NumPy APIs.
+
+Prefer:
+
+    np.trapezoid
+
+with compatibility handling where useful.
+
+
+======================================================================
+39. CAMPAIGN GATING
+======================================================================
+
+Preserve fail-closed authorization.
+
+Canonical sequence:
+
+    preflight
+        |
+        v
+    host validation
+        |
+        v
+    real GPU physics validation
+        |
+        v
+    decision
+        |
+        +--- FAIL ---> STOP
+        |             NO H170
+        |
+        +--- PASS ---> signed authorization receipt
+                           |
+                           v
+                       H170 campaign
+
+If ANY compulsory GPU gate fails:
+
+    validated_physics_correction = false
+
+    sediment_campaign_authorized = false
+
+and:
+
+    H170 MUST NOT RUN.
+
+Reject:
+
+    missing receipt
+    stale receipt
+    another-version receipt
+    host-only receipt
+    incomplete GPU run
+    failed receipt
+    mismatched code hashes
+    mismatched validation hashes
+
+No trivial command-line bypass.
+
+
+======================================================================
+40. VERSIONING
+======================================================================
+
+Up-version the complete executable release consistently to:
+
+    V24.41.0
+
+Top-level directory:
+
+    CLARITAS_V24_41
+
+Expected important equivalents include:
+
+    claritas_tardiis_core_v24_41.py
+
+    claritas_v24_41_config.json
+
+    v24_41_model.py
+
+    v24_41_release.py
+
+    v24_41_validation.py
+
+    v24_41_legacy_core.py
+
+    preflight_v24_41_package.py
+
+    verify_v24_41_corrected_boundary.py
+
+    summarize_v24_41_corrected_boundary.py
+
+    plot_v24_41_corrected_boundary.py
+
+    run_v24_41_case.py
+
+    run_v24_41_campaign.py
+
+and any other versioned modules required by the architecture.
+
+Audit:
+
+    imports
+    subprocess calls
+    configs
+    manifests
+    documentation
+    executable strings
+
+No stale V24.40 executable module may control V24.41 production.
+
+Historical V24.40 implementation may exist only in isolated known-bad regression/reference code.
+
+
+======================================================================
+41. DOCUMENTATION
+======================================================================
+
+Update at minimum:
+
+    README.md
+
+    RELEASE_NOTES.txt
+
+    PACKAGE_MANIFEST.json
+
+    SHA256SUMS.txt
+
+and appropriate physics/numerical-validation documentation.
+
+Explain:
+
+    V24.37 support-resampling defect
+
+    V24.38 lower-side VNDF defect
+
+    V24.39 reciprocity improvement and remaining numerical failure
+
+    V24.40 full-domain VNDF changes
+
+    V24.40's successful reciprocity results
+
+    V24.40's dominant HEIGHT_CDF_INVALID result
+
+    why Smith Lambda suffers cancellation
+
+    how V24.41 evaluates Lambda stably
+
+    how V24.41 uses log-domain height/CDF arithmetic
+
+    how lambda->0 is handled
+
+    how the ultra-grazing VNDF representation is stabilized
+
+    why the physical Smith random walk itself was retained
+
+    what remains frozen
+
+    why H170 remains gated
+
+Cite the actual published Smith/Heitz/Beckmann formulation used.
+
+Do not claim success merely because the theory is reciprocal.
+
+The actual CUDA implementation must pass the release gates.
+
+
+======================================================================
+42. HOST PREFLIGHT / ADVERSARIAL AUDIT
+======================================================================
+
+Retain or strengthen the existing package checks.
+
+Verify:
+
+    all required files exist
+
+    package manifest valid
+
+    critical hashes valid
+
+    Python source compiles in memory
+
+    no package-tree .pyc dependency
+
+    locked/non-writable __pycache__ tolerated
+
+    NumPy compatibility
+
+    no unguarded np.trapz dependency
+
+    frozen V24.29 physics retained
+
+    legacy identity retained
+
+    25-degree roughness retained
+
+    k=0 retained
+
+    no V24.37 support-resampling leakage
+
+    no V24.38 invalid lower-side rejection leakage
+
+    no V24.39 arbitrary VNDF tail truncation leakage
+
+    no V24.40 unstable Smith-height implementation in corrected production
+
+    no geometric fallback
+
+    no numerical-error-as-escape
+
+    no H170 tuning
+
+    no empirical loss
+
+    Python subprocesses use sys.executable
+
+    no unnecessary nested Bash
+
+    acceptable Windows path budget
+
+    production CUDA + validation CUDA pass available syntax/scope surrogate
+
+    validation writers -> summarizer -> decision -> plotter run end-to-end
+
+    campaign rejects missing/non-authorizing receipts
+
+    numerical/watchdog failures cannot become sediment results
+
+
+======================================================================
+43. GPU AVAILABILITY RULE
+======================================================================
+
+If suitable CUDA hardware IS available:
+
+Run the complete V24.41 GPU release validation.
+
+Only set:
+
+    validated_physics_correction = true
+
+and:
+
+    sediment_campaign_authorized = true
+
+if EVERY compulsory gate genuinely passes.
+
+Require at minimum:
+
+    Smith Lambda test PASS
+
+    randomized height stress PASS
+
+    zero equal-index numerical failures
+
+    zero production probability numerical failures
+
+    zero watchdogs
+
+    ultra-grazing VNDF PASS
+
+    full-sphere VNDF stress PASS
+
+    signed VNDF distribution PASS
+
+    all 66 Qsca>=1 reciprocity bins PASS
+
+    all cross-interface reciprocity tests PASS
+
+    deterministic optics PASS
+
+    smooth limit PASS
+
+    all historical known-bad regressions rejected
+
+If everything passes:
+
+    allow the canonical six-case H170 campaign to proceed.
+
+If ANY GPU gate fails:
+
+    do not tune H170
+    do not tune roughness
+    do not weaken thresholds
+    do not hide failures
+    do not redesign successful physics without evidence
+    keep sediment transport blocked
+    STILL BUILD AND RETURN THE ZIP
+
+If CUDA is unavailable:
+
+    do not invent GPU results
+    do not mark physics validated
+    do not authorize sediment
+    do not run H170
+    STILL BUILD AND RETURN THE ZIP
+
+
+======================================================================
+44. REQUIRED USER-SIDE RUN COMMANDS
+======================================================================
+
+The final response MUST include exact copy-paste-ready Git Bash commands.
+
+The preferred commands are:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_41"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_41_package.py && \
+    python verify_v24_41_corrected_boundary.py && \
+    python run_v24_41_campaign.py
+
+These exact commands should work unless there is a compelling architectural reason to alter them.
+
+If changed:
+
+    explain why
+    provide the COMPLETE replacement command block
+
+Do not omit the commands from the final answer.
+
+
+======================================================================
+45. COMPULSORY FINAL ZIP WORKFLOW
+======================================================================
+
+THIS SECTION IS NON-OPTIONAL.
+
+A source directory is NOT an acceptable final deliverable.
+
+Before answering the user:
+
+1. Build the complete directory:
+
+       CLARITAS_V24_41
+
+2. Run:
+
+       python preflight_v24_41_package.py
+
+3. Run the complete host verifier.
+
+4. Run CUDA validation if suitable CUDA hardware is genuinely available.
+
+5. Generate/update all documentation.
+
+6. Generate/update:
+
+       PACKAGE_MANIFEST.json
+
+7. Generate/update:
+
+       SHA256SUMS.txt
+
+8. Remove cache/temp/build artefacts not intended for release.
+
+9. Create the actual file:
+
+       CLARITAS_V24_41.zip
+
+10. Test the ZIP compressed-data integrity.
+
+11. Extract THAT EXACT ZIP into a fresh clean directory.
+
+12. From the freshly extracted ZIP run:
+
+       python preflight_v24_41_package.py
+
+13. Run the COMPLETE host verifier from the extracted ZIP.
+
+14. Verify:
+
+       SHA256SUMS.txt
+
+    from the extracted ZIP.
+
+15. Confirm the extracted package does not depend on files outside the ZIP.
+
+16. Where practical, test with a pre-existing non-writable:
+
+       __pycache__
+
+17. Calculate the final SHA-256 of:
+
+       CLARITAS_V24_41.zip
+
+18. Make that exact ZIP available as a downloadable attachment/link.
+
+DO NOT finish the response before step 18 has been completed.
+
+
+======================================================================
+46. DEFINITION OF DONE
+======================================================================
+
+The task is complete ONLY when:
+
+    V24.41.0 is fully implemented
+
+    V24.40 is the production starting point
+
+    V24.40's successful Smith dielectric microsurface physical model is retained
+
+    Smith Beckmann Lambda is numerically stable
+
+    catastrophic erf/exp cancellation is removed
+
+    signed Lambda behaviour is mathematically correct
+
+    lambda->0 behaviour is handled correctly
+
+    height/free-path probability calculations use numerically stable arithmetic
+
+    escape probability avoids 1-G cancellation
+
+    next-height CDF avoids unstable pow(1-U,1/lambda) evaluation
+
+    height failure subcodes are expanded
+
+    randomized height stress validation exists
+
+    equal-index numerical failures are still a compulsory gate
+
+    ultra-grazing VNDF precision is improved without changing the distribution
+
+    full-sphere VNDF stress remains
+
+    no geometric fallback exists
+
+    no support-resampling exists
+
+    numerical error cannot masquerade as escape
+
+    V24.36 regression remains
+
+    V24.37 regression remains
+
+    V24.38 regression remains
+
+    V24.39 regression remains
+
+    V24.40 known-bad regression is added
+
+    all unrelated physics remains frozen
+
+    reciprocity thresholds remain unchanged
+
+    campaign authorization remains fail-closed
+
+    host validation passes
+
+    GPU status is truthful
+
+    documentation is updated
+
+    hashes/manifests are generated
+
+    exact final ZIP is integrity-tested
+
+    exact final ZIP is re-extracted
+
+    extracted ZIP passes preflight
+
+    extracted ZIP passes full host verification
+
+    final ZIP SHA-256 is reported
+
+    downloadable CLARITAS_V24_41.zip is supplied
+
+    exact run commands are supplied
+
+
+======================================================================
+47. FINAL RESPONSE FORMAT
+======================================================================
+
+Keep the final answer focused but complete.
+
+It MUST report:
+
+1. What numerical problem V24.41 fixes.
+
+2. Confirmation that the successful V24.40 Smith-Beckmann physical process was retained.
+
+3. How Smith Lambda is now evaluated robustly.
+
+4. How the height/free-path calculation is stabilized.
+
+5. How lambda->0 is handled.
+
+6. How the ultra-grazing VNDF precision issue was addressed.
+
+7. Host validation status.
+
+8. GPU validation status.
+
+9. Equal-index result if actually run.
+
+10. Randomized height-stress result if actually run.
+
+11. Numerical failure count if actually run.
+
+12. Watchdog count if actually run.
+
+13. Ultra-grazing VNDF result if actually run.
+
+14. Complete-kernel reciprocity result if actually run.
+
+15. Cross-interface reciprocity result if actually run.
+
+16. Whether:
+
+        validated_physics_correction
+
+    is true or false.
+
+17. Whether:
+
+        sediment_campaign_authorized
+
+    is true or false.
+
+18. Final ZIP SHA-256.
+
+19. A DOWNLOADABLE:
+
+        CLARITAS_V24_41.zip
+
+20. Exact copy-paste-ready Git Bash run commands.
+
+
+The final response MUST contain an actual downloadable link equivalent to:
+
+    [Download CLARITAS_V24_41.zip]
+
+NOT merely the text saying that such a file should exist.
+
+
+It MUST then contain the run block:
+
+    cd "/f/Google Drive Sync/CLARITAS_code/CLARITAS/CLARITAS_V24_41"
+
+    conda activate claritas
+
+    rm -rf ~/.cupy/kernel_cache
+    rm -rf ~/.cupy/jitify_cache
+    rm -rf results
+    rm -rf __pycache__
+
+    python preflight_v24_41_package.py && \
+    python verify_v24_41_corrected_boundary.py && \
+    python run_v24_41_campaign.py
+
+
+======================================================================
+48. NON-NEGOTIABLE RULES
+======================================================================
+
+DO NOT:
+
+    redesign the successful physical model without evidence
+
+    weaken the >1% AND >=5 sigma reciprocity criterion
+
+    tune against H170
+
+    tune the 25-degree roughness
+
+    change frozen V24.29 Mie/event-rate physics
+
+    add fitted material multipliers
+
+    add PSD correction factors
+
+    add empirical losses
+
+    hide numerical failures
+
+    convert numerical failure into escape
+
+    convert numerical failure into absorption
+
+    restore geometric-normal fallback
+
+    restore support rejection/resampling
+
+    clamp an incorrect Lambda merely to make tests pass
+
+    clamp an incorrect CDF merely to make tests pass
+
+    remove difficult test states
+
+    invent CUDA results
+
+    claim GPU authorization without real GPU execution
+
+    claim sediment authorization after a failed gate
+
+    finish without a ZIP
+
+    finish without run commands
+
+
+MOST IMPORTANT:
+
+THE TASK IS NOT COMPLETE UNTIL YOU HAVE ACTUALLY CREATED AND ATTACHED:
+
+    CLARITAS_V24_41.zip
+
+AND PROVIDED THE EXACT COPY-PASTE-READY RUN COMMANDS.
+
+THE ZIP FILE AND RUN COMMANDS ARE BOTH COMPULSORY.

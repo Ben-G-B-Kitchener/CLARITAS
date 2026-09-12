@@ -1,0 +1,174 @@
+{
+  "release": "V24.52.0",
+  "regions": [
+    {
+      "region_id": 1,
+      "name": "WATER",
+      "radial_support": "r<Rin",
+      "axial_support": "Zmin<z<local free surface",
+      "material": "water",
+      "neighbors": [
+        "headspace",
+        "acrylic sidewall",
+        "acrylic bottom"
+      ]
+    },
+    {
+      "region_id": 4,
+      "name": "HEADSPACE_AIR",
+      "radial_support": "r<Rin",
+      "axial_support": "local free surface<z<Zwall_top",
+      "material": "air",
+      "neighbors": [
+        "water",
+        "acrylic sidewall",
+        "external air through open top"
+      ]
+    },
+    {
+      "region_id": 2,
+      "name": "ACRYLIC_SIDEWALL",
+      "radial_support": "Rin<r<Rout",
+      "axial_support": "Zmin<z<Zwall_top",
+      "material": "acrylic",
+      "neighbors": [
+        "water or headspace at inner wall",
+        "external air at outer wall",
+        "acrylic bottom at seam",
+        "external air at annular top"
+      ]
+    },
+    {
+      "region_id": 3,
+      "name": "ACRYLIC_BOTTOM",
+      "radial_support": "r<Rout",
+      "axial_support": "Zlow<z<Zmin",
+      "material": "acrylic",
+      "neighbors": [
+        "water over r<Rin at top",
+        "acrylic sidewall over Rin<r<Rout at seam",
+        "external medium at bottom/outer wall"
+      ]
+    },
+    {
+      "region_id": 5,
+      "name": "EXTERNAL_AIR",
+      "radial_support": "outside physical vessel or above open top",
+      "axial_support": "unbounded outside finite vessel",
+      "material": "air",
+      "neighbors": [
+        "acrylic outer surfaces",
+        "headspace through open bore"
+      ]
+    }
+  ],
+  "surfaces": [
+    {
+      "surface_id": 10,
+      "name": "water_air_free_surface",
+      "definition": "z=Z_free_surface(x,y)",
+      "finite_support": "r<Rin",
+      "side_a": "water",
+      "side_b": "headspace air",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": 11,
+      "name": "inner_acrylic_cylinder",
+      "definition": "r=Rin",
+      "finite_support": "Zmin<=z<=Zwall_top",
+      "side_a": "water below local free surface; headspace above",
+      "side_b": "acrylic sidewall",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": 22,
+      "name": "outer_acrylic_cylinder",
+      "definition": "r=Rout",
+      "finite_support": "Zlow<=z<=Zwall_top",
+      "side_a": "acrylic",
+      "side_b": "external air",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": 25,
+      "name": "bottom_water_aperture",
+      "definition": "z=Zmin",
+      "finite_support": "r<Rin",
+      "side_a": "water",
+      "side_b": "acrylic bottom",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": "seam",
+      "name": "bottom_sidewall_internal_continuity",
+      "definition": "z=Zmin",
+      "finite_support": "Rin<=r<=Rout",
+      "side_a": "acrylic sidewall",
+      "side_b": "acrylic bottom",
+      "optical": false,
+      "fresnel": false,
+      "rng": false
+    },
+    {
+      "surface_id": 23,
+      "name": "outer_bottom_face",
+      "definition": "z=Zlow",
+      "finite_support": "r<=Rout",
+      "side_a": "acrylic bottom",
+      "side_b": "configured bottom external medium",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": 24,
+      "name": "annular_tube_top_face",
+      "definition": "z=Zwall_top",
+      "finite_support": "Rin<=r<=Rout",
+      "side_a": "acrylic sidewall",
+      "side_b": "external air",
+      "optical": true,
+      "fresnel": true,
+      "rng": true
+    },
+    {
+      "surface_id": 13,
+      "name": "open_bore_top",
+      "definition": "z=Zwall_top",
+      "finite_support": "r<Rin",
+      "side_a": "headspace air",
+      "side_b": "external air",
+      "optical": false,
+      "fresnel": false,
+      "rng": false
+    }
+  ],
+  "canonical_parameters": {
+    "Rin": 0.0465,
+    "Rout": 0.05,
+    "tube_length": 0.491,
+    "sensor_height": 0.093,
+    "water_height": 0.142,
+    "bottom_thickness": 0.003,
+    "free_surface_model": 2,
+    "delta_h": 0.05,
+    "core_r": 0.02,
+    "n_water": 1.33,
+    "n_acrylic": 1.4906,
+    "n_air": 1.0,
+    "n_bottom": 1.0,
+    "Zmin": -0.093,
+    "Zlow": -0.096,
+    "Zmean": 0.04899999999999999,
+    "Zwall_top": 0.398
+  }
+}

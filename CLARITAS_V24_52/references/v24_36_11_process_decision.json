@@ -1,0 +1,54 @@
+{
+  "gpu_acquisition_complete": true,
+  "diagnostic_integrity_passed": false,
+  "fixed_microfacet_local_reversibility_passed": false,
+  "microfacet_sampler_classification": "facing-conditioned raw Beckmann NDF with up to 8 attempts; not a Smith visible-normal distribution",
+  "current_vs_vndf_l1_histogram_max": 0.4075149241426787,
+  "accepted_rough_sampler_detailed_balance_diagnostic": {
+    "n_accepted_pairs": 198,
+    "median_relative_asymmetry": 0.14093538491863267,
+    "max_relative_asymmetry": 0.6423375684146054,
+    "fraction_gt_1pct": 0.9090909090909091
+  },
+  "macro_tir_flux_observations": {
+    "loess": {
+      "event_weighted_outside_to_tir_per_boundary": 0.0188653157231122,
+      "event_weighted_tir_to_outside_per_tir_boundary": 0.0029704686180285,
+      "event_weighted_tir_to_escape_per_tir_boundary": 0.0476152267200871,
+      "event_weighted_tir_to_tir_per_tir_boundary": 0.9480180646538312,
+      "candidate_escape_rejection_fraction": 0.1366607218852889,
+      "rejected_escape_probability_mass_fraction": 0.1199516523193774,
+      "rejected_to_geom_tir_mass_fraction": 0.1199516523193774,
+      "fallback_fraction_all_boundaries": 0.6938376369158286,
+      "production_cap_fraction": 0.0035563443972376,
+      "diagnostic_512_censored_fraction": 0.0025703241304188,
+      "rough_vs_smooth_cap_fraction_ratio": null
+    },
+    "kaolin": {
+      "event_weighted_outside_to_tir_per_boundary": 0.0182353627874194,
+      "event_weighted_tir_to_outside_per_tir_boundary": 0.0029675429008659,
+      "event_weighted_tir_to_escape_per_tir_boundary": 0.0477398378970977,
+      "event_weighted_tir_to_tir_per_tir_boundary": 0.9479049515798552,
+      "candidate_escape_rejection_fraction": 0.1412686816305648,
+      "rejected_escape_probability_mass_fraction": 0.1245831238213414,
+      "rejected_to_geom_tir_mass_fraction": 0.1245831238213414,
+      "fallback_fraction_all_boundaries": 0.6855260715551292,
+      "production_cap_fraction": 0.0034662300800329,
+      "diagnostic_512_censored_fraction": 0.0024708285596041,
+      "rough_vs_smooth_cap_fraction_ratio": null
+    }
+  },
+  "reciprocity_defect_demonstrated": false,
+  "fallback_process_defect_demonstrated": false,
+  "reciprocity_status": "not_conclusively_demonstrated_by_raw_pdf_or_population_asymmetry_alone",
+  "production_65_reflection_numerical_sink_still_present": true,
+  "numerical_photon_destruction_removed_from_production": false,
+  "roughness_rms_slope_deg": 25.0,
+  "roughness_provenance_status": "inherited physically motivated but independently unvalidated morphology parameter",
+  "process_correction_authorized": false,
+  "production_ray_campaign_authorized": false,
+  "sediment_transport_run": false,
+  "decision": "diagnostic_only_reciprocity_fallback_evidence_generated_no_process_correction_authorized",
+  "release": "V24.36.11",
+  "diagnostic_only": true
+}
